@@ -28,22 +28,39 @@ test_that("Missing local file fails", {
 })
 
 # Local file tests
-test_that("Spatial filters work correctly", {
+test_that("ctry spatial filter works correctly", {
   temp <- tempfile(fileext = ".rds")
   saveRDS(mock_data, temp)
 
   ctry <- suppressMessages(load_polis_pop(spatial_scale = "ctry", edav = FALSE, file_loc = temp))
-  expect_true(all(!is.na(ctry$Admin0GUID)))
-  expect_equal(nrow(ctry), 6)
+  expect_true(all(!is.na(ctry$Admin0GUID),
+                  is.na(ctry$Admin1GUID),
+                  is.na(ctry$Admin2GUID)))
+  expect_equal(nrow(ctry), 2)
+  unlink(temp)
+})
+
+test_that("prov spatial filter works correctly", {
+  temp <- tempfile(fileext = ".rds")
+  saveRDS(mock_data, temp)
 
   prov <- suppressMessages(load_polis_pop(spatial_scale = "prov", edav = FALSE, file_loc = temp))
-  expect_true(all(!is.na(prov$Admin1GUID)))
+  expect_true(all(!is.na(prov$Admin0GUID),
+                  !is.na(prov$Admin1GUID),
+                  is.na(prov$Admin2GUID)))
   expect_equal(nrow(prov), 4)
+  unlink(temp)
+})
+
+test_that("dist spatial filter works correctly", {
+  temp <- tempfile(fileext = ".rds")
+  saveRDS(mock_data, temp)
 
   dist <- suppressMessages(load_polis_pop(spatial_scale = "dist", edav = FALSE, file_loc = temp))
-  expect_true(all(!is.na(dist$Admin2GUID)))
+  expect_true(all(!is.na(dist$Admin0GUID),
+                  !is.na(dist$Admin1GUID),
+                  !is.na(dist$Admin2GUID)))
   expect_equal(nrow(dist), 2)
-
   unlink(temp)
 })
 
