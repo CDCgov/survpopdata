@@ -15,8 +15,8 @@
 #'
 #' @export
 load_polis_pop <- function(spatial_scale,
-                           edav = NULL,
-                           file_loc = "pop.rds",
+                           edav = TRUE,
+                           file_loc = "GID/PEB/SIR/POLIS/data/pop.rds",
                            azcontainer = NULL) {
   # Auto-detect edav when file_loc is not specified
   if (is.null(edav)) {
@@ -38,7 +38,7 @@ load_polis_pop <- function(spatial_scale,
     if (is.null(azcontainer)) {
       azcontainer <- sirfunctions::get_azure_storage_connection()
     }
-    sirfunctions::edav_io(io = "read", file_loc = file_loc, azcontainer = azcontainer)
+    sirfunctions::edav_io(io = "read", NULL, file_loc = file_loc, azcontainer = azcontainer)
   } else {
     readRDS(file_loc)
   }
