@@ -1,6 +1,6 @@
 # Compact mock data - ONE TABLE with all levels
 create_mock <- function() {
-  tibble::tibble(
+  dplyr::tibble(
     Admin0GUID = c("{C-1}", "{C-1}", "{C-1}", "{C-2}", "{C-2}", "{C-2}"),
     Admin1GUID = c(NA, "{P-1}", "{P-1}", NA, "{P-2}", "{P-2}"),
     Admin2GUID = c(NA, NA, "{D-1}", NA, NA, "{D-2}"),
