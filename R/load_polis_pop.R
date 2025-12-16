@@ -36,22 +36,15 @@ load_polis_pop <- function(spatial_scale,
     stop("spatial_scale must be 'ctry', 'prov', or 'dist'")
   }
 
-  # Column check
-  col_check <- list(
-    ctry = "Admin0GUID",
-    prov = "Admin1GUID",
-    dist = "Admin2GUID"
-  )
-
-  required_col <- col_check[[spatial_scale]]
-
-  if (!required_col %in% colnames(polis_data)) {
-    stop("Column '", required_col, "' not found in data")
-  }
-
   # Filter and include source column
-  polis_data <- polis_data |>
-    dplyr::filter(!is.na(!!dplyr::sym(required_col)))|>
+  polis_data <- switch(
+    spatial_scale,
+    ctry = dplyr::filter(polis_data, !is.na(Admin0GUID) & is.na(Admin1GUID) & is.na(Admin2GUID)) |>
+      dplyr::select(-dplyr::any_of(c("Admin1GUID", "Admin1Name", "Admin2GUID", "Admin2Name"))),
+    prov = dplyr::filter(polis_data, !is.na(Admin0GUID) & !is.na(Admin1GUID) & is.na(Admin2GUID)) |>
+      dplyr::select(-dplyr::any_of(c("Admin2GUID", "Admin2Name"))),
+    dist = dplyr::filter(polis_data, !is.na(Admin0GUID) & !is.na(Admin1GUID) & !is.na(Admin2GUID))
+  ) |>
     dplyr::mutate(datasource = "POLIS API")
 
   # Check if empty data
@@ -62,7 +55,7 @@ load_polis_pop <- function(spatial_scale,
     message("Loaded ", nrow(polis_data), " ", spatial_scale, "-level records from POLIS")
   }
 
-  # Validate Data_Source before returning
+  # Validate data and return
   polis_data |>
     assertr::verify(assertr::has_all_names("datasource")) |>
     assertr::assert(assertr::not_na, datasource) |>
