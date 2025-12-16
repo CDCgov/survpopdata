@@ -51,7 +51,7 @@ load_polis_pop <- function(spatial_scale,
 
   # Filter and include source column
   polis_data <- polis_data |>
-    dplyr::filter(!is.na(.data[[required_col]])) |>
+    dplyr::filter(!is.na(!!dplyr::sym(required_col)))|>
     dplyr::mutate(datasource = "POLIS API")
 
   # Check if empty data
