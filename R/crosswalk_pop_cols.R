@@ -32,14 +32,16 @@ crosswalk_pop_cols <- function(pop_data) {
                        StartDate = "STARTDATE",
                        EndDate = "ENDDATE",
                        Year = "active.year.01") |>
-    dplyr::mutate(adm0guid = paste0("{", stringr::str_to_upper(Admin0GUID), "}"),
-                  adm1guid = paste0("{", stringr::str_to_upper(Admin1GUID), "}"),
-                  adm2guid = paste0("{", stringr::str_to_upper(Admin2GUID), "}"),
-                  CreatedDate = lubridate::as_date(CreatedDate),
+    dplyr::mutate(dplyr::across(dplyr::any_of(c("Admin0GUID", "Admin1GUID", "Admin2GUID")),
+                                \(x) paste0("{", stringr::str_to_upper(Admin0GUID), "}"))) |>
+    dplyr::rename_with(dplyr::recode,
+                       Admin0GUID = "adm0guid",
+                       Admin1GUID = "adm1guid",
+                       Admin2GUID = "adm2guid") |>
+    dplyr::mutate(CreatedDate = lubridate::as_date(CreatedDate),
                   UpdatedDate = lubridate::as_date(UpdatedDate),
                   STARTDATE = lubridate::as_date(STARTDATE),
-                  ENDDATE = lubridate::as_date(ENDDATE)
-                  )
+                  ENDDATE = lubridate::as_date(ENDDATE))
 
   formatted_pop <- formatted_pop |>
     dplyr::select(dplyr::any_of(c("ISO_3_CODE", "WHO_REGION",
