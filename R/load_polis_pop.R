@@ -60,6 +60,9 @@ load_polis_pop <- function(spatial_scale,
   polis_data |>
     assertr::verify(assertr::has_all_names("datasource")) |>
     assertr::assert(assertr::not_na, datasource) |>
+    assertr::assert(is.numeric, Value, Year) |>
+    assertr::assert(lubridate::is.Date, StartDate, EndDate, CreatedDate, UpdatedDate) |>
     assertr::assert(function(x) x != "", datasource) |>
     assertr::assert(assertr::in_set("POLIS API"), datasource)
+
 }
