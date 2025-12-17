@@ -56,6 +56,13 @@ load_polis_pop <- function(spatial_scale,
     message("Loaded ", nrow(polis_data), " ", spatial_scale, "-level records from POLIS")
   }
 
+  polis_data <- polis_data |>
+    dplyr::mutate(dplyr::across(dplyr::all_of(c("Value", "Year")),
+                                \(x) as.numeric(x)),
+                  dplyr::across(dplyr::all_of(c("StartDate", "EndDate", "CreatedDate", "UpdatedDate")),
+                                              \(x) lubridate::as_date(x))
+                  )
+
   # Validate data and return
   polis_data |>
     assertr::verify(assertr::has_all_names("datasource")) |>
