@@ -29,25 +29,25 @@ crosswalk_pop_cols <- function(pop_data) {
                        Admin0Name = "ADM0_NAME",
                        Admin1Name = "ADM1_NAME",
                        Admin2Name = "ADM2_NAME",
+                       CreatedDate = "CREATEDDATE",
+                       UpdatedDate = "UPDATEDDATE",
                        StartDate = "STARTDATE",
                        EndDate = "ENDDATE",
-                       Year = "active.year.01") |>
+                       Year = "year") |>
     dplyr::mutate(dplyr::across(dplyr::any_of(c("Admin0GUID", "Admin1GUID", "Admin2GUID")),
-                                \(x) paste0("{", stringr::str_to_upper(Admin0GUID), "}"))) |>
+                                \(x) paste0("{", stringr::str_to_upper(x), "}"))) |>
     dplyr::rename_with(dplyr::recode,
                        Admin0GUID = "adm0guid",
                        Admin1GUID = "adm1guid",
-                       Admin2GUID = "adm2guid") |>
-    dplyr::mutate(CreatedDate = lubridate::as_date(CreatedDate),
-                  UpdatedDate = lubridate::as_date(UpdatedDate),
-                  STARTDATE = lubridate::as_date(STARTDATE),
-                  ENDDATE = lubridate::as_date(ENDDATE))
+                       Admin2GUID = "adm2guid")
 
   formatted_pop <- formatted_pop |>
     dplyr::select(dplyr::any_of(c("ISO_3_CODE", "WHO_REGION",
                                   "ADM0_NAME", "ADM1_NAME", "ADM2_NAME",
                                   "adm0guid", "adm1guid", "adm2guid",
-                                  "STARTDATE", "ENDDATE", "year", "AgeGroupCode",
+                                  "STARTDATE", "ENDDATE",
+                                  "CREATEDDATE", "UPDATEDDATE",
+                                  "year", "AgeGroupCode",
                                   "Value", "datasource")))
   return(formatted_pop)
 }
