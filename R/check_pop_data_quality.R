@@ -1,8 +1,16 @@
 #' Check if all required age groups are present
-#' @noRd
-missing_required_agegroups <- function(x) {
-  required <- c("U5", "U15", "TotalPop")
-  missing_groups <- setdiff(required, x)
+#'
+#' @description
+#' Uses the AgeGroupCode column of the POLIS pop file.
+#'
+#' @param age_col `str` A string or vector of age group codes.
+#'
+#' @returns A list of missing group codes
+#' @keywords internal
+#'
+missing_required_agegroups <- function(age_col) {
+  required <- c("0-5Y", "0-15Y", "ALL")
+  missing_groups <- setdiff(required, age_col)
 
   if (length(missing_groups) == 0) {
     NA_character_
