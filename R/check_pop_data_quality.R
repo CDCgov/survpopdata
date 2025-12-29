@@ -1,16 +1,13 @@
 #' Check if all required age groups are present
 #'
-#' @description
-#' Uses the AgeGroupCode column of the POLIS pop file.
+#' @param present_agegroups Character vector of age group codes.
 #'
-#' @param age_col `str` A string or vector of age group codes.
+#' @return NA_character_ if all present, else string of missing age groups.
 #'
-#' @returns A list of missing group codes
 #' @keywords internal
-#'
-missing_required_agegroups <- function(age_col) {
+missing_required_agegroups <- function(present_agegroups) {
   required <- c("0-5Y", "0-15Y", "ALL")
-  missing_groups <- setdiff(required, age_col)
+  missing_groups <- setdiff(required, present_agegroups)
 
   if (length(missing_groups) == 0) {
     NA_character_
@@ -20,100 +17,165 @@ missing_required_agegroups <- function(age_col) {
 }
 
 #' Find conflicting admin mappings
-#' @noRd
-find_conflicting_admins <- function(data, admin_check, upper_admin_check, return_details = FALSE) {
+#'
+#' Identifies child admin units that map to multiple parent admin units.
+#'
+#' @param pop_data Tibble containing population data.
+#' @param child_admin_col String of child admin column (e.g., "Admin2GUID").
+#' @param parent_admin_col String of parent admin column (e.g., "Admin1GUID").
+#' @param return_details Logical.
+#'   If TRUE, return a tibble with conflicting parent GUIDs per child.
+#'   If FALSE, return the child GUIDs with multiple parents.
+#'
+#' @return Tibble with conflict details or vector of conflicting GUIDs.
+#'
+#' @keywords internal
+find_conflicting_admins <- function(
+  pop_data, child_admin_col, parent_admin_col,
+  return_details = FALSE
+) {
   sym <- dplyr::sym
 
-  conflicts <- data |>
-    dplyr::filter(!is.na(!!sym(admin_check)), !!sym(admin_check) != "") |>
-    dplyr::distinct(!!sym(admin_check), !!sym(upper_admin_check)) |>
-    dplyr::group_by(!!sym(admin_check)) |>
-    dplyr::filter(dplyr::n_distinct(!!sym(upper_admin_check)) > 1)
+  conflicts <- pop_data |>
+    dplyr::filter(
+      !is.na(!!sym(child_admin_col)), !!sym(child_admin_col) != ""
+    ) |>
+    dplyr::distinct(!!sym(child_admin_col), !!sym(parent_admin_col)) |>
+    dplyr::group_by(!!sym(child_admin_col)) |>
+    dplyr::filter(dplyr::n_distinct(!!sym(parent_admin_col)) > 1)
 
   if (return_details) {
     conflicts |>
       dplyr::summarise(
-        conflicting_parents = paste(unique(!!sym(upper_admin_check)), collapse = ", "),
+        conflicting_parents = paste(
+          unique(!!sym(parent_admin_col)),
+          collapse = ", "
+        ),
         .groups = "drop"
       )
   } else {
     conflicts |>
-      dplyr::pull(!!sym(admin_check)) |>
+      dplyr::pull(!!sym(child_admin_col)) |>
       unique()
   }
 }
 
-#' Create age group predicate generator
-#' @noRd
-create_agegroup_predicate <- function(missing_guids) {
-  function(x) {
-    function(y) !(y %in% missing_guids) | is.na(y)
-  }
-}
-
-#' Create unique parent predicate generator
-#' @noRd
-create_parent_predicate <- function(guid_col, data) {
+#' Summarize conflicting parent admins per GUID
+#'
+#' Returns admin GUIDs that map to multiple parent admin units, with the
+#' conflicting parent GUIDs listed.
+#'
+#' For "Admin2GUID", reports conflicts against Admin1GUID and Admin0GUID.
+#' For "Admin1GUID", reports conflicts against Admin0GUID.
+#'
+#' @param pop_data Tibble containing population data.
+#' @param guid_col String name of the GUID column to summarize.
+#'
+#' @return A tibble of GUIDs with conflicting parent mappings.
+#'
+#' @keywords internal
+summarize_conflicting_parents <- function(pop_data, guid_col) {
   if (guid_col == "Admin2GUID") {
-    conflicting_dist_prov <- find_conflicting_admins(data, "Admin2GUID", "Admin1GUID")
-    conflicting_dist_ctry <- find_conflicting_admins(data, "Admin2GUID", "Admin0GUID")
-    all_conflicting_admins <- unique(c(conflicting_dist_prov, conflicting_dist_ctry))
-    function(x) {
-      function(y) !(y %in% all_conflicting_admins) | is.na(y)
-    }
-  } else if (guid_col == "Admin1GUID") {
-    conflicting_prov_ctry <- find_conflicting_admins(data, "Admin1GUID", "Admin0GUID")
-    function(x) {
-      function(y) !(y %in% conflicting_prov_ctry) | is.na(y)
-    }
-  } else {
-    function(x) {
-      function(y) TRUE
-    }
-  }
-}
+    admin1_conflicts <- find_conflicting_admins(
+      pop_data, "Admin2GUID", "Admin1GUID",
+      return_details = TRUE
+    ) |>
+      dplyr::rename(conflicting_admin1 = conflicting_parents)
+    admin0_conflicts <- find_conflicting_admins(
+      pop_data, "Admin2GUID", "Admin0GUID",
+      return_details = TRUE
+    ) |>
+      dplyr::rename(conflicting_admin0 = conflicting_parents)
 
-#' Compute conflicting parent admins per GUID
-#' @noRd
-compute_conflicting_parents_df <- function(guid_col, data) {
-  case_when <- dplyr::case_when
-
-  if (guid_col == "Admin2GUID") {
-    conflicts_prov <- find_conflicting_admins(data, "Admin2GUID", "Admin1GUID", return_details = TRUE) |>
-      dplyr::rename(conflict_prov = conflicting_parents)
-    conflicts_ctry <- find_conflicting_admins(data, "Admin2GUID", "Admin0GUID", return_details = TRUE) |>
-      dplyr::rename(conflict_ctry = conflicting_parents)
-
-    data |>
+    pop_data |>
       dplyr::distinct(Admin2GUID) |>
-      dplyr::left_join(conflicts_prov, by = "Admin2GUID") |>
-      dplyr::left_join(conflicts_ctry, by = "Admin2GUID") |>
-      dplyr::mutate(
-        duplicated_parents = case_when(
-          !is.na(conflict_prov) & !is.na(conflict_ctry) ~ paste("Prov:", conflict_prov, "; Ctry:", conflict_ctry),
-          !is.na(conflict_prov) ~ paste("Prov:", conflict_prov),
-          !is.na(conflict_ctry) ~ paste("Ctry:", conflict_ctry),
-          TRUE ~ NA_character_
-        )
-      ) |>
-      dplyr::filter(!is.na(duplicated_parents)) |>
-      dplyr::select(Admin2GUID, duplicated_parents)
+      dplyr::left_join(admin1_conflicts, by = "Admin2GUID") |>
+      dplyr::left_join(admin0_conflicts, by = "Admin2GUID") |>
+      dplyr::filter(!is.na(conflicting_admin1) | !is.na(conflicting_admin0)) |>
+      dplyr::select(Admin2GUID, conflicting_admin1, conflicting_admin0)
   } else if (guid_col == "Admin1GUID") {
-    find_conflicting_admins(data, "Admin1GUID", "Admin0GUID", return_details = TRUE) |>
-      dplyr::rename(Admin1GUID = 1, duplicated_parents = conflicting_parents)
+    find_conflicting_admins(
+      pop_data, "Admin1GUID", "Admin0GUID",
+      return_details = TRUE
+    ) |>
+      dplyr::rename(conflicting_admin0 = conflicting_parents) |>
+      dplyr::mutate(conflicting_admin1 = NA_character_) |>
+      dplyr::select(Admin1GUID, conflicting_admin1, conflicting_admin0)
   } else {
-    dplyr::tibble(!!dplyr::sym(guid_col) := character(), duplicated_parents = character())
+    dplyr::tibble(
+      Admin0GUID = character(),
+      conflicting_admin1 = character(),
+      conflicting_admin0 = character()
+    )
+  }
+}
+
+#' Create unique parent predicate per admin GUID for assertr validation
+#'
+#' Predicate that checks whether each admin GUID maps to a single parent admin.
+#'
+#' For "Admin2GUID", checks uniqueness against Admin1GUID and Admin0GUID.
+#' For "Admin1GUID", checks uniqueness against Admin0GUID.
+#'
+#' @param pop_data Tibble containing population data.
+#' @param guid_col String name of the GUID column to validate.
+#'
+#' @return A predicate function for use with assertr.
+#'
+#' @keywords internal
+create_parent_predicate <- function(pop_data, guid_col) {
+  if (guid_col == "Admin2GUID") {
+    conflicting_with_admin1 <- find_conflicting_admins(
+      pop_data, "Admin2GUID", "Admin1GUID"
+    )
+    conflicting_with_admin0 <- find_conflicting_admins(
+      pop_data, "Admin2GUID", "Admin0GUID"
+    )
+    all_conflicting_guids <- unique(c(
+      conflicting_with_admin1,
+      conflicting_with_admin0
+    ))
+    function(column_values) {
+      function(value) !(value %in% all_conflicting_guids) | is.na(value)
+    }
+  } else if (guid_col == "Admin1GUID") {
+    conflicting_with_admin0 <- find_conflicting_admins(
+      pop_data, "Admin1GUID", "Admin0GUID"
+    )
+    function(column_values) {
+      function(value) !(value %in% conflicting_with_admin0) | is.na(value)
+    }
+  } else {
+    function(column_values) {
+      function(value) TRUE
+    }
+  }
+}
+
+#' Create age group predicate per GUID for assertr validation
+#'
+#' Predicate that checks whether each GUID has required age group data.
+#'
+#' @param guids_with_missing_agegroups GUIDs with missing age groups.
+#'
+#' @return A predicate function for use with assertr.
+#'
+#' @keywords internal
+create_agegroup_predicate <- function(guids_with_missing_agegroups) {
+  function(column_values) {
+    function(value) !(value %in% guids_with_missing_agegroups) | is.na(value)
   }
 }
 
 #' Check Population Data Quality
 #'
-#' Runs validation checks on population data from POLIS and returns flagged rows.
+#' Validation checks on population data from POLIS and returns flagged rows.
 #'
 #' @param pop_rds Tibble containing population data from POLIS.
 #' @param spatial_scale Geographic level: "ctry", "prov", or "dist".
 #'
-#' @return A tibble of flagged rows with validation columns appended, or NULL if all checks pass.
+#' @return A tibble with one row per GUID that has validation issues.
+#'         Returns empty tibble with correct structure if all checks pass.
 #'
 #' Validation checks include:
 #' \itemize{
@@ -123,7 +185,7 @@ compute_conflicting_parents_df <- function(guid_col, data) {
 #'   \item StartDate is not after EndDate
 #'   \item CreatedDate and UpdatedDate are not in the future
 #'   \item Year matches the year in StartDate
-#'   \item Each Admin GUID has all three age groups (U5, U15, TotalPop)
+#'   \item Each Admin GUID has all three age groups (0-5Y, 0-15Y, ALL)
 #'   \item Each Admin GUID maps to a single parent admin
 #'   \item Value is within 2 standard deviations of the mean
 #' }
@@ -139,20 +201,48 @@ compute_conflicting_parents_df <- function(guid_col, data) {
 check_pop_data_quality <- function(pop_rds, spatial_scale) {
   sym <- dplyr::sym
   case_when <- dplyr::case_when
-  row_number <- dplyr::row_number
-
-  # Spatial scale filter
-  pop_rds <- switch(spatial_scale,
-                    "ctry" = dplyr::filter(pop_rds, !is.na(Admin0GUID) & is.na(Admin1GUID) & is.na(Admin2GUID)),
-                    "prov" = dplyr::filter(pop_rds, !is.na(Admin0GUID) & !is.na(Admin1GUID) & is.na(Admin2GUID)),
-                    "dist" = dplyr::filter(pop_rds, !is.na(Admin0GUID) & !is.na(Admin1GUID) & !is.na(Admin2GUID))
-  )
 
   # Set GUID column
   guid_col <- switch(spatial_scale,
-                     "ctry" = "Admin0GUID",
-                     "prov" = "Admin1GUID",
-                     "dist" = "Admin2GUID"
+    "ctry" = "Admin0GUID",
+    "prov" = "Admin1GUID",
+    "dist" = "Admin2GUID"
+  )
+
+  # Capture all POLIS available sources per GUID before filtering
+  sources_df <- pop_rds |>
+    dplyr::group_by(Admin0GUID, Admin1GUID, Admin2GUID) |>
+    dplyr::summarise(sources = paste(sort(unique(FK_DataSetId)),
+      collapse = ", "
+    ), .groups = "drop")
+
+  # Filter POLIS source for validation: exclude 41, prioritize 2, then 19
+  pop_rds <- pop_rds |>
+    dplyr::filter(FK_DataSetId != 41) |>
+    dplyr::group_by(Admin0GUID, Admin1GUID, Admin2GUID) |>
+    dplyr::filter(FK_DataSetId == ifelse(2 %in% FK_DataSetId, 2, 19)) |>
+    dplyr::ungroup()
+
+  # Spatial scale filter
+  pop_rds <- switch(spatial_scale,
+    "ctry" = dplyr::filter(
+      pop_rds,
+      !is.na(Admin0GUID) &
+        is.na(Admin1GUID) &
+        is.na(Admin2GUID)
+    ),
+    "prov" = dplyr::filter(
+      pop_rds,
+      !is.na(Admin0GUID) &
+        !is.na(Admin1GUID) &
+        is.na(Admin2GUID)
+    ),
+    "dist" = dplyr::filter(
+      pop_rds,
+      !is.na(Admin0GUID) &
+        !is.na(Admin1GUID) &
+        !is.na(Admin2GUID)
+    )
   )
 
   # Compute missing age groups per GUID
@@ -160,25 +250,25 @@ check_pop_data_quality <- function(pop_rds, spatial_scale) {
     dplyr::filter(!is.na(!!sym(guid_col))) |>
     dplyr::group_by(!!sym(guid_col)) |>
     dplyr::summarise(
-      present = list(unique(AgeGroupCode)),
+      present_agegroups = list(unique(AgeGroupCode)),
       .groups = "drop"
     ) |>
     dplyr::mutate(
-      missing = sapply(present, missing_required_agegroups)
+      missing = sapply(present_agegroups, missing_required_agegroups)
     ) |>
     dplyr::filter(!is.na(missing)) |>
     dplyr::select(dplyr::all_of(guid_col), missing_agegroups = missing)
-
-  missing_guids <- missing_agegroups_df |>
-    dplyr::pull(!!sym(guid_col)) |>
-    unique()
+  guids_with_missing_agegroups <- dplyr::pull(
+    missing_agegroups_df,
+    !!sym(guid_col)
+  )
 
   # Create predicate generators
-  has_all_agegroups <- create_agegroup_predicate(missing_guids)
-  has_unique_parent <- create_parent_predicate(guid_col, pop_rds)
+  has_all_agegroups <- create_agegroup_predicate(guids_with_missing_agegroups)
+  has_unique_parent <- create_parent_predicate(pop_rds, guid_col)
 
-  # Compute conflicting parent admins per GUID (for detail column later)
-  conflicting_parents_df <- compute_conflicting_parents_df(guid_col, pop_rds)
+  # Compute conflicting parent admins
+  conflicting_parents_df <- summarize_conflicting_parents(pop_rds, guid_col)
 
   # Run validation chain
   validated <- pop_rds |>
@@ -189,14 +279,16 @@ check_pop_data_quality <- function(pop_rds, spatial_scale) {
       "Admin2GUID", "Admin2Id", "Admin2Name",
       "AgeGroupCode", "CountryISO3Code",
       "CreatedDate", "EndDate", "StartDate", "UpdatedDate",
-      "Value", "WHORegion", "Year", "datasource", "PlaceId"
+      "Value", "WHORegion", "Year", "datasource", "PlaceId",
+      "FK_DataSetId"
     )) |>
     assertr::assert(assertr::not_na, Value, StartDate, AgeGroupCode, PlaceId) |>
     assertr::assert(assertr::within_bounds(0, Inf), Value) |>
     assertr::verify(is.na(EndDate) | StartDate <= EndDate) |>
     assertr::verify(is.na(CreatedDate) | CreatedDate <= Sys.Date()) |>
     assertr::verify(is.na(UpdatedDate) | UpdatedDate <= Sys.Date()) |>
-    assertr::verify(is.na(Year) | is.na(StartDate) | Year == lubridate::year(StartDate)) |>
+    assertr::verify(is.na(Year) | is.na(StartDate) |
+      Year == lubridate::year(StartDate)) |>
     assertr::insist(has_all_agegroups, !!sym(guid_col)) |>
     assertr::insist(has_unique_parent, !!sym(guid_col)) |>
     assertr::insist(assertr::within_n_sds(2), Value) |>
@@ -205,71 +297,101 @@ check_pop_data_quality <- function(pop_rds, spatial_scale) {
   # Check if errors were returned
   has_errors <- nrow(validated) > 0
 
-  # All checks passed
   if (!has_errors) {
     message("All checks passed")
     return(invisible(NULL))
   }
 
-  # Extract errors into table
+  # Extract errors and applicable year(s) data per validation type
   error_rows <- validated |>
     dplyr::filter(!is.na(index)) |>
     dplyr::mutate(
-      col_name = case_when(
-        verb == "assert" & column %in% c("Value", "StartDate", "AgeGroupCode", "PlaceId") ~ "missing_required_values",
-        verb == "assert" & grepl("within_bounds", predicate, ignore.case = TRUE) ~ "negative_value",
-        verb == "verify" & grepl("EndDate.*StartDate|StartDate.*EndDate", predicate) ~ "startdate_after_enddate",
-        verb == "verify" & grepl("CreatedDate", predicate) ~ "created_date_future",
-        verb == "verify" & grepl("UpdatedDate", predicate) ~ "updated_date_future",
-        verb == "verify" & grepl("Year.*StartDate|StartDate.*Year", predicate) ~ "year_startdate_mismatch",
-        verb == "insist" & grepl("has_all_agegroups", predicate) ~ "agegroup_missing",
-        verb == "insist" & grepl("has_unique_parent", predicate) ~ "duplicated_parent_admin",
-        verb == "insist" & grepl("within_n_sds", predicate, ignore.case = TRUE) ~ "pop_outlier",
+      validation_type = case_when(
+        verb == "assert" & column == "Value" & grepl(
+          "not_na", predicate,
+          ignore.case = TRUE
+        ) ~ "null_value",
+
+        verb == "assert" & column == "StartDate" & grepl(
+          "not_na", predicate,
+          ignore.case = TRUE
+        ) ~ "null_startdate",
+
+        verb == "assert" & column == "AgeGroupCode" & grepl(
+          "not_na", predicate,
+          ignore.case = TRUE
+        ) ~ "null_agegroup",
+
+        verb == "assert" & column == "PlaceId" & grepl(
+          "not_na", predicate,
+          ignore.case = TRUE
+        ) ~ "null_placeid",
+
+        verb == "assert" & grepl(
+          "within_bounds", predicate,
+          ignore.case = TRUE
+        ) ~ "negative_value",
+
+        verb == "verify" & grepl(
+          "EndDate.*StartDate|StartDate.*EndDate", predicate
+        ) ~ "startdate_after_enddate",
+
+        verb == "verify" & grepl(
+          "CreatedDate", predicate
+        ) ~ "future_created_date",
+
+        verb == "verify" & grepl(
+          "UpdatedDate", predicate
+        ) ~ "future_updated_date",
+
+        verb == "verify" & grepl(
+          "Year.*StartDate|StartDate.*Year", predicate
+        ) ~ "year_startdate_mismatch",
+
+        verb == "insist" & grepl(
+          "within_n_sds", predicate,
+          ignore.case = TRUE
+        ) ~ "pop_outlier_years_(+/-2sd)",
         TRUE ~ NA_character_
       )
     ) |>
-    dplyr::filter(!is.na(col_name)) |>
-    dplyr::select(row_num = index, validation_col = col_name)
+    dplyr::filter(!is.na(validation_type))
 
-  # Skip filter if no rows
-  if (nrow(error_rows) == 0) {
-    message("No validation flag detected")
-    return(invisible(NULL))
-  }
+  # Summarize errors by GUID
+  error_summary <- error_rows |>
+    dplyr::left_join(
+      pop_rds |> dplyr::mutate(index = dplyr::row_number()) |>
+        dplyr::select(index, !!sym(guid_col), Year),
+      by = "index"
+    ) |>
+    dplyr::group_by(!!sym(guid_col), validation_type) |>
+    dplyr::summarise(years = paste(sort(unique(Year)),
+      collapse = ", "
+    ), .groups = "drop") |>
+    dplyr::mutate(validation_type = factor(
+      validation_type,
+      levels = unique(error_rows$validation_type)
+    )) |>
+    tidyr::pivot_wider(names_from = validation_type, values_from = years)
 
-  # Pivot to wide format
-  flags_wide <- error_rows |>
-    dplyr::mutate(flag = "FLAG") |>
-    tidyr::pivot_wider(names_from = validation_col, values_from = flag, values_fill = NA_character_)
+  # Combine all summaries
+  result <- sources_df |>
+    dplyr::left_join(missing_agegroups_df, by = guid_col) |>
+    dplyr::left_join(conflicting_parents_df, by = guid_col) |>
+    dplyr::left_join(error_summary, by = guid_col) |>
+    dplyr::filter(dplyr::if_any(-c(
+      Admin0GUID, Admin1GUID, Admin2GUID, sources
+    ), ~ !is.na(.))) |>
+    dplyr::select(
+      Admin0GUID, Admin1GUID, Admin2GUID, sources,
+      dplyr::where(~ any(!is.na(.)))
+    )
 
-  # Join with original data
-  result <- pop_rds |>
-    dplyr::mutate(row_num = row_number()) |>
-    dplyr::left_join(flags_wide, by = "row_num")
-
-  # Add detail columns for agegroup_missing
-  if ("agegroup_missing" %in% names(result)) {
-    result <- result |>
-      dplyr::left_join(missing_agegroups_df, by = guid_col)
-  }
-
-  # Add detail columns for duplicated_parent_admin
-  if ("duplicated_parent_admin" %in% names(result)) {
-    result <- result |>
-      dplyr::left_join(conflicting_parents_df, by = guid_col)
-  }
-
-  # Filter and select
-  val_cols <- setdiff(names(flags_wide), "row_num")
-  flagged_cols <- val_cols[sapply(val_cols, function(c) any(result[[c]] == "FLAG", na.rm = TRUE))]
-
-  # Add detail columns if they exist
-  detail_cols <- intersect(c("missing_agegroups", "duplicated_parents"), names(result))
-
-  result <- result |>
-    dplyr::filter(dplyr::if_any(dplyr::all_of(flagged_cols), ~ . == "FLAG")) |>
-    dplyr::select(row_num, dplyr::all_of(names(pop_rds)), dplyr::all_of(flagged_cols), dplyr::all_of(detail_cols))
-
-  message(paste0(nrow(result), " rows flagged"))
+  # Output
+  message(if (nrow(result) == 0) {
+    "All checks passed"
+  } else {
+    paste0(nrow(result), " GUIDs flagged with issues")
+  })
   return(result)
 }
