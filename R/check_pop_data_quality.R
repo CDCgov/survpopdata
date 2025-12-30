@@ -184,10 +184,9 @@ create_agegroup_predicate <- function(guids_with_missing_agegroups) {
 #'   \item Value is non-negative
 #'   \item StartDate is not after EndDate
 #'   \item CreatedDate and UpdatedDate are not in the future
-#'   \item Year matches the year in StartDate
 #'   \item Each Admin GUID has all three age groups (0-5Y, 0-15Y, ALL)
 #'   \item Each Admin GUID maps to a single parent admin
-#'   \item Value is within 2 standard deviations of the mean
+#'   \item Value is within 2 standard deviations of the mean per age group
 #' }
 #'
 #' @examples
@@ -211,7 +210,8 @@ check_pop_data_quality <- function(pop_rds, spatial_scale) {
 
   # Capture all POLIS available sources per GUID before filtering
   sources_df <- pop_rds |>
-    dplyr::group_by(Admin0GUID, Admin1GUID, Admin2GUID) |>
+    dplyr::group_by(dplyr::across(dplyr::any_of(c(
+      "Admin0GUID", "Admin1GUID", "Admin2GUID")))) |>
     dplyr::summarise(sources = paste(sort(unique(FK_DataSetId)),
       collapse = ", "
     ), .groups = "drop")
@@ -219,31 +219,14 @@ check_pop_data_quality <- function(pop_rds, spatial_scale) {
   # Filter POLIS source for validation: exclude 41, prioritize 2, then 19
   pop_rds <- pop_rds |>
     dplyr::filter(FK_DataSetId != 41) |>
-    dplyr::group_by(Admin0GUID, Admin1GUID, Admin2GUID) |>
+    dplyr::group_by(dplyr::across(dplyr::any_of(c(
+      "Admin0GUID", "Admin1GUID", "Admin2GUID")))) |>
     dplyr::filter(FK_DataSetId == ifelse(2 %in% FK_DataSetId, 2, 19)) |>
     dplyr::ungroup()
 
   # Spatial scale filter
-  pop_rds <- switch(spatial_scale,
-    "ctry" = dplyr::filter(
-      pop_rds,
-      !is.na(Admin0GUID) &
-        is.na(Admin1GUID) &
-        is.na(Admin2GUID)
-    ),
-    "prov" = dplyr::filter(
-      pop_rds,
-      !is.na(Admin0GUID) &
-        !is.na(Admin1GUID) &
-        is.na(Admin2GUID)
-    ),
-    "dist" = dplyr::filter(
-      pop_rds,
-      !is.na(Admin0GUID) &
-        !is.na(Admin1GUID) &
-        !is.na(Admin2GUID)
-    )
-  )
+  pop_rds <- pop_rds |>
+    dplyr::filter(!is.na(!!sym(guid_col)))
 
   # Compute missing age groups per GUID
   missing_agegroups_df <- pop_rds |>
@@ -287,15 +270,25 @@ check_pop_data_quality <- function(pop_rds, spatial_scale) {
     assertr::verify(is.na(EndDate) | StartDate <= EndDate) |>
     assertr::verify(is.na(CreatedDate) | CreatedDate <= Sys.Date()) |>
     assertr::verify(is.na(UpdatedDate) | UpdatedDate <= Sys.Date()) |>
-    assertr::verify(is.na(Year) | is.na(StartDate) |
-      Year == lubridate::year(StartDate)) |>
     assertr::insist(has_all_agegroups, !!sym(guid_col)) |>
     assertr::insist(has_unique_parent, !!sym(guid_col)) |>
-    assertr::insist(assertr::within_n_sds(2), Value) |>
     assertr::chain_end(error_fun = assertr::error_df_return)
 
+  # Outlier validation per age group
+  age_groups <- c("0-5Y", "0-15Y", "ALL")
+  outlier_results <- setNames(
+    lapply(age_groups, \(age_group) {
+      pop_rds |>
+        dplyr::filter(AgeGroupCode == age_group) |>
+        assertr::insist(assertr::within_n_sds(2), Value,
+                        error_fun = assertr::error_df_return)
+    }),
+    age_groups
+  )
+
   # Check if errors were returned
-  has_errors <- nrow(validated) > 0
+  has_errors <- nrow(validated) > 0 ||
+    any(sapply(outlier_results, nrow) > 0)
 
   if (!has_errors) {
     message("All checks passed")
@@ -342,17 +335,7 @@ check_pop_data_quality <- function(pop_rds, spatial_scale) {
 
         verb == "verify" & grepl(
           "UpdatedDate", predicate
-        ) ~ "future_updated_date",
-
-        verb == "verify" & grepl(
-          "Year.*StartDate|StartDate.*Year", predicate
-        ) ~ "year_startdate_mismatch",
-
-        verb == "insist" & grepl(
-          "within_n_sds", predicate,
-          ignore.case = TRUE
-        ) ~ "pop_outlier_years_(+/-2sd)",
-        TRUE ~ NA_character_
+        ) ~ "future_updated_date"
       )
     ) |>
     dplyr::filter(!is.na(validation_type))
@@ -366,7 +349,7 @@ check_pop_data_quality <- function(pop_rds, spatial_scale) {
     ) |>
     dplyr::group_by(!!sym(guid_col), validation_type) |>
     dplyr::summarise(years = paste(sort(unique(Year)),
-      collapse = ", "
+                                   collapse = ", "
     ), .groups = "drop") |>
     dplyr::mutate(validation_type = factor(
       validation_type,
@@ -374,16 +357,41 @@ check_pop_data_quality <- function(pop_rds, spatial_scale) {
     )) |>
     tidyr::pivot_wider(names_from = validation_type, values_from = years)
 
+  # Summarize outliers by GUID and age group
+  pop_rds_indexed <- pop_rds |>
+    dplyr::mutate(index = dplyr::row_number())
+
+  outlier_summaries <- lapply(age_groups, \(age_group) {
+    col_name <- paste0("outlier_(+/-2sd)_", age_group)
+    outlier_results[[age_group]] |>
+      dplyr::filter(!is.na(index)) |>
+      dplyr::left_join(
+        pop_rds_indexed |>
+          dplyr::filter(AgeGroupCode == age_group) |>
+          dplyr::mutate(index = dplyr::row_number()) |>
+          dplyr::select(index, !!sym(guid_col), Year),
+        by = "index"
+      ) |>
+      dplyr::group_by(!!sym(guid_col)) |>
+      dplyr::summarise(!!col_name :=
+                  paste(sort(unique(Year)), collapse = ", "), .groups = "drop")
+  })
+
+  outlier_summary <- outlier_summaries[[1]] |>
+    dplyr::full_join(outlier_summaries[[2]], by = guid_col) |>
+    dplyr::full_join(outlier_summaries[[3]], by = guid_col)
+
   # Combine all summaries
   result <- sources_df |>
     dplyr::left_join(missing_agegroups_df, by = guid_col) |>
     dplyr::left_join(conflicting_parents_df, by = guid_col) |>
     dplyr::left_join(error_summary, by = guid_col) |>
-    dplyr::filter(dplyr::if_any(-c(
-      Admin0GUID, Admin1GUID, Admin2GUID, sources
-    ), ~ !is.na(.))) |>
+    dplyr::left_join(outlier_summary, by = guid_col) |>
+    dplyr::filter(dplyr::if_any(-dplyr::any_of(c(
+      "Admin0GUID", "Admin1GUID", "Admin2GUID", "sources"
+    )), ~ !is.na(.))) |>
     dplyr::select(
-      Admin0GUID, Admin1GUID, Admin2GUID, sources,
+      dplyr::any_of(c("Admin0GUID", "Admin1GUID", "Admin2GUID", "sources")),
       dplyr::where(~ any(!is.na(.)))
     )
 
