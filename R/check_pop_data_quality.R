@@ -186,7 +186,7 @@ create_agegroup_predicate <- function(guids_with_missing_agegroups) {
 #'   \item CreatedDate and UpdatedDate are not in the future
 #'   \item Each Admin GUID has all three age groups (0-5Y, 0-15Y, ALL)
 #'   \item Each Admin GUID maps to a single parent admin
-#'   \item Value is within 2 standard deviations of the mean per age group
+#'   \item Value is within 2 median absolute deviation per admin and age group
 #' }
 #'
 #' @examples
@@ -276,12 +276,40 @@ check_pop_data_quality <- function(pop_rds, spatial_scale) {
 
   # Outlier validation per age group
   age_groups <- c("0-5Y", "0-15Y", "ALL")
+  unique_guids <- unique(pop_rds[[guid_col]])
+
   outlier_results <- setNames(
     lapply(age_groups, \(age_group) {
-      pop_rds |>
-        dplyr::filter(AgeGroupCode == age_group) |>
-        assertr::insist(assertr::within_n_sds(2), Value,
-                        error_fun = assertr::error_df_return)
+      lapply(unique_guids, \(guid) {
+        guid_age_data <- pop_rds |>
+          dplyr::filter(
+            !!sym(guid_col) == guid,
+            AgeGroupCode == age_group,
+            !is.na(Value),
+            Value >= 0
+          ) |>
+          dplyr::mutate(index = dplyr::row_number())
+
+        if (nrow(guid_age_data) < 2) {
+          return(NULL)
+        }
+
+        assertr_result <- guid_age_data |>
+          assertr::insist(assertr::within_n_mads(2), Value,
+            error_fun = assertr::error_df_return
+          )
+
+        if ("verb" %in% names(assertr_result)) {
+          assertr_result |>
+            dplyr::left_join(
+              guid_age_data |> dplyr::select(index, !!sym(guid_col), Year),
+              by = "index"
+            )
+        } else {
+          NULL
+        }
+      }) |>
+        dplyr::bind_rows()
     }),
     age_groups
   )
@@ -304,35 +332,28 @@ check_pop_data_quality <- function(pop_rds, spatial_scale) {
           "not_na", predicate,
           ignore.case = TRUE
         ) ~ "null_value",
-
         verb == "assert" & column == "StartDate" & grepl(
           "not_na", predicate,
           ignore.case = TRUE
         ) ~ "null_startdate",
-
         verb == "assert" & column == "AgeGroupCode" & grepl(
           "not_na", predicate,
           ignore.case = TRUE
         ) ~ "null_agegroup",
-
         verb == "assert" & column == "PlaceId" & grepl(
           "not_na", predicate,
           ignore.case = TRUE
         ) ~ "null_placeid",
-
         verb == "assert" & grepl(
           "within_bounds", predicate,
           ignore.case = TRUE
         ) ~ "negative_value",
-
         verb == "verify" & grepl(
           "EndDate.*StartDate|StartDate.*EndDate", predicate
         ) ~ "startdate_after_enddate",
-
         verb == "verify" & grepl(
           "CreatedDate", predicate
         ) ~ "future_created_date",
-
         verb == "verify" & grepl(
           "UpdatedDate", predicate
         ) ~ "future_updated_date"
@@ -358,20 +379,17 @@ check_pop_data_quality <- function(pop_rds, spatial_scale) {
     tidyr::pivot_wider(names_from = validation_type, values_from = years)
 
   # Summarize outliers by GUID and age group
-  pop_rds_indexed <- pop_rds |>
-    dplyr::mutate(index = dplyr::row_number())
-
   outlier_summaries <- lapply(age_groups, \(age_group) {
-    col_name <- paste0("outlier_(+/-2sd)_", age_group)
-    outlier_results[[age_group]] |>
-      dplyr::filter(!is.na(index)) |>
-      dplyr::left_join(
-        pop_rds_indexed |>
-          dplyr::filter(AgeGroupCode == age_group) |>
-          dplyr::mutate(index = dplyr::row_number()) |>
-          dplyr::select(index, !!sym(guid_col), Year),
-        by = "index"
-      ) |>
+    col_name <- paste0("outlier_(+/-2mad)_", age_group)
+    outlier_data <- outlier_results[[age_group]]
+
+    if (is.null(outlier_data) || nrow(outlier_data) == 0) {
+      return(dplyr::tibble(
+        !!sym(guid_col) := character(), !!col_name := character()
+      ))
+    }
+
+    outlier_data |>
       dplyr::group_by(!!sym(guid_col)) |>
       dplyr::summarise(!!col_name :=
                   paste(sort(unique(Year)), collapse = ", "), .groups = "drop")
