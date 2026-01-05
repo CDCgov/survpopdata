@@ -188,18 +188,48 @@ create_agegroup_predicate <- function(guids_with_missing_agegroups) {
   }
 }
 
+#' Obtains GUID with missing age group
+#'
+#' @description
+#' Obtains the GUIDs missing age groups.
+#'
+#' @inheritParams create_parent_predicate
+#'
+#' @returns `tibble` A summary table of GUIDs and their missing age groups.
+#' @keywords internal
+#'
+get_guid_missing_age_groups <- function(pop_data, guid_col) {
+
+  missing_agegroups_df <- pop_rds |>
+    dplyr::filter(!is.na(!!dplyr::sym(guid_col))) |>
+    dplyr::group_by(!!dplyr::sym(guid_col)) |>
+    dplyr::summarise(
+      present_agegroups = list(unique(AgeGroupCode)),
+      .groups = "drop"
+    ) |>
+    dplyr::mutate(
+      missing = sapply(present_agegroups, missing_required_agegroups)
+    ) |>
+    dplyr::filter(!is.na(missing)) |>
+    dplyr::select(dplyr::all_of(guid_col), missing_agegroups = missing)
+
+  return(missing_agegroups_df)
+}
+
 # Public function ----
 
 #' Check Population Data Quality
 #'
+#' @description
 #' Validation checks on population data from POLIS and returns flagged rows.
 #'
-#' @param pop_rds Tibble containing population data from POLIS.
-#' @param spatial_scale Geographic level: "ctry", "prov", or "dist".
+#' @param pop_rds `tibble` Population data from POLIS. Output of [load_polis_pop].
+#' @param spatial_scale `str` Geographic level. Valid values are `"ctry"`, `"prov"`, or `"dist"`.
 #'
-#' @return A tibble with one row per GUID that has validation issues.
-#'         Returns empty tibble with correct structure if all checks pass.
+#' @returns `tibble` Summary table with one row per GUID that has validation issues.
+#' Returns empty tibble with correct structure if all checks pass.
 #'
+#' @details
 #' Validation checks include:
 #' \itemize{
 #'   \item Required columns exist
@@ -212,6 +242,15 @@ create_agegroup_predicate <- function(guids_with_missing_agegroups) {
 #'   \item Value is within 2 median absolute deviation per admin and age group
 #' }
 #'
+#' There are several data sources (from the `FK_DataSetId` column).They include:
+#' \itemize{
+#' \item 1: Unknown
+#'  \item 2: POLIS default
+#'  \item 17: Unknown
+#'  \item 19: country population data
+#'  \item 41: LandScan data
+#' }
+#'
 #' @examples
 #' \dontrun{
 #' check_pop_data_quality(raw_dist_pop, spatial_scale = "dist")
@@ -220,9 +259,7 @@ create_agegroup_predicate <- function(guids_with_missing_agegroups) {
 #' }
 #'
 #' @export
-check_pop_data_quality <- function(pop_rds, spatial_scale) {
-  sym <- dplyr::sym
-  case_when <- dplyr::case_when
+check_pop_data_quality <- function(pop_data, spatial_scale, dataset_source = 2) {
 
   # Set GUID column
   guid_col <- switch(spatial_scale,
@@ -231,53 +268,32 @@ check_pop_data_quality <- function(pop_rds, spatial_scale) {
     "dist" = "Admin2GUID"
   )
 
+  # Filter POLIS source for validation and spatial scale filter
+  pop_data <- pop_data |>
+    dplyr::filter(FK_DataSetId == dataset_source) |>
+    dplyr::filter(!is.na(!!dplyr::sym(guid_col)))
+
   # Capture all POLIS available sources per GUID before filtering
-  sources_df <- pop_rds |>
+  sources_df <- pop_data |>
     dplyr::group_by(dplyr::across(dplyr::any_of(c(
       "Admin0GUID", "Admin1GUID", "Admin2GUID")))) |>
-    dplyr::summarise(sources = paste(sort(unique(FK_DataSetId)),
-      collapse = ", "
+    dplyr::summarize(sources = paste(sort(unique(FK_DataSetId)),
+                                     collapse = ", "
     ), .groups = "drop")
 
-  # Filter POLIS source for validation: exclude 41, prioritize 2, then 19
-  pop_rds <- pop_rds |>
-    dplyr::filter(FK_DataSetId != 41) |>
-    dplyr::group_by(dplyr::across(dplyr::any_of(c(
-      "Admin0GUID", "Admin1GUID", "Admin2GUID")))) |>
-    dplyr::filter(FK_DataSetId == ifelse(2 %in% FK_DataSetId, 2, 19)) |>
-    dplyr::ungroup()
-
-  # Spatial scale filter
-  pop_rds <- pop_rds |>
-    dplyr::filter(!is.na(!!sym(guid_col)))
-
   # Compute missing age groups per GUID
-  missing_agegroups_df <- pop_rds |>
-    dplyr::filter(!is.na(!!sym(guid_col))) |>
-    dplyr::group_by(!!sym(guid_col)) |>
-    dplyr::summarise(
-      present_agegroups = list(unique(AgeGroupCode)),
-      .groups = "drop"
-    ) |>
-    dplyr::mutate(
-      missing = sapply(present_agegroups, missing_required_agegroups)
-    ) |>
-    dplyr::filter(!is.na(missing)) |>
-    dplyr::select(dplyr::all_of(guid_col), missing_agegroups = missing)
-  guids_with_missing_agegroups <- dplyr::pull(
-    missing_agegroups_df,
-    !!sym(guid_col)
-  )
+  missing_agegroups_df <- get_guid_missing_age_groups(pop_data, guid_col)
+  guids_with_missing_agegroups <- missing_age_groups_df |> dplyr::pull(guid_col)
 
   # Create predicate generators
   has_all_agegroups <- create_agegroup_predicate(guids_with_missing_agegroups)
-  has_unique_parent <- create_parent_predicate(pop_rds, guid_col)
+  has_unique_parent <- create_parent_predicate(pop_data, guid_col)
 
   # Compute conflicting parent admins
-  conflicting_parents_df <- summarize_conflicting_parents(pop_rds, guid_col)
+  conflicting_parents_df <- summarize_conflicting_parents(pop_data, guid_col)
 
   # Run validation chain
-  validated <- pop_rds |>
+  validated <- pop_data |>
     assertr::chain_start() |>
     assertr::verify(assertr::has_all_names(
       "Admin0GUID", "Admin0Id", "Admin0Name",
@@ -293,20 +309,20 @@ check_pop_data_quality <- function(pop_rds, spatial_scale) {
     assertr::verify(is.na(EndDate) | StartDate <= EndDate) |>
     assertr::verify(is.na(CreatedDate) | CreatedDate <= Sys.Date()) |>
     assertr::verify(is.na(UpdatedDate) | UpdatedDate <= Sys.Date()) |>
-    assertr::insist(has_all_agegroups, !!sym(guid_col)) |>
-    assertr::insist(has_unique_parent, !!sym(guid_col)) |>
+    assertr::insist(has_all_agegroups, !!dplyr::sym(guid_col)) |>
+    assertr::insist(has_unique_parent, !!dplyr::sym(guid_col)) |>
     assertr::chain_end(error_fun = assertr::error_df_return)
 
   # Outlier validation per age group
   age_groups <- c("0-5Y", "0-15Y", "ALL")
-  unique_guids <- unique(pop_rds[[guid_col]])
+  unique_guids <- unique(pop_data[[guid_col]])
 
   outlier_results <- setNames(
     lapply(age_groups, \(age_group) {
       lapply(unique_guids, \(guid) {
-        guid_age_data <- pop_rds |>
+        guid_age_data <- pop_data |>
           dplyr::filter(
-            !!sym(guid_col) == guid,
+            !!dplyr::sym(guid_col) == guid,
             AgeGroupCode == age_group,
             !is.na(Value),
             Value >= 0
@@ -325,7 +341,7 @@ check_pop_data_quality <- function(pop_rds, spatial_scale) {
         if ("verb" %in% names(assertr_result)) {
           assertr_result |>
             dplyr::left_join(
-              guid_age_data |> dplyr::select(index, !!sym(guid_col), Year),
+              guid_age_data |> dplyr::select(index, !!dplyr::sym(guid_col), Year),
               by = "index"
             )
         } else {
@@ -350,7 +366,7 @@ check_pop_data_quality <- function(pop_rds, spatial_scale) {
   error_rows <- validated |>
     dplyr::filter(!is.na(index)) |>
     dplyr::mutate(
-      validation_type = case_when(
+      validation_type = dplyr::case_when(
         verb == "assert" & column == "Value" & grepl(
           "not_na", predicate,
           ignore.case = TRUE
@@ -387,11 +403,11 @@ check_pop_data_quality <- function(pop_rds, spatial_scale) {
   # Summarize errors by GUID
   error_summary <- error_rows |>
     dplyr::left_join(
-      pop_rds |> dplyr::mutate(index = dplyr::row_number()) |>
-        dplyr::select(index, !!sym(guid_col), Year),
+      pop_data |> dplyr::mutate(index = dplyr::row_number()) |>
+        dplyr::select(index, !!dplyr::sym(guid_col), Year),
       by = "index"
     ) |>
-    dplyr::group_by(!!sym(guid_col), validation_type) |>
+    dplyr::group_by(!!dplyr::sym(guid_col), validation_type) |>
     dplyr::summarise(years = paste(sort(unique(Year)),
                                    collapse = ", "
     ), .groups = "drop") |>
@@ -408,12 +424,12 @@ check_pop_data_quality <- function(pop_rds, spatial_scale) {
 
     if (is.null(outlier_data) || nrow(outlier_data) == 0) {
       return(dplyr::tibble(
-        !!sym(guid_col) := character(), !!col_name := character()
+        !!dplyr::sym(guid_col) := character(), !!col_name := character()
       ))
     }
 
     outlier_data |>
-      dplyr::group_by(!!sym(guid_col)) |>
+      dplyr::group_by(!!dplyr::sym(guid_col)) |>
       dplyr::summarise(!!col_name :=
                   paste(sort(unique(Year)), collapse = ", "), .groups = "drop")
   })
