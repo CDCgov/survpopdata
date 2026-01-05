@@ -16,4 +16,6 @@ Imports:
     assertr,
     dplyr,
     lubridate,
+    dplyr,
+    stringr,
     tidyr

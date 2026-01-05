@@ -10,6 +10,7 @@
 #' @importFrom assertr within_bounds
 #' @importFrom assertr within_n_sds
 #' @importFrom lubridate year
+#' @importFrom stringr str_to_upper
 #' @importFrom tidyr pivot_wider
 ## usethis namespace: end
 NULL
