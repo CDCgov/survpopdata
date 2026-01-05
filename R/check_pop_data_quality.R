@@ -1,8 +1,9 @@
+# Private functions ----
 #' Check if all required age groups are present
 #'
-#' @param present_agegroups Character vector of age group codes.
+#' @param present_agegroups `str` Character vector of age group codes.
 #'
-#' @return NA_character_ if all present, else string of missing age groups.
+#' @returns `str` `NA` if all present, otherwise a string of missing age groups.
 #'
 #' @keywords internal
 missing_required_agegroups <- function(present_agegroups) {
@@ -10,9 +11,9 @@ missing_required_agegroups <- function(present_agegroups) {
   missing_groups <- setdiff(required, present_agegroups)
 
   if (length(missing_groups) == 0) {
-    NA_character_
+    return(NA_character_)
   } else {
-    paste(missing_groups, collapse = ", ")
+    return(paste(missing_groups, collapse = ", "))
   }
 }
 
@@ -167,6 +168,8 @@ create_agegroup_predicate <- function(guids_with_missing_agegroups) {
   }
 }
 
+# Public function ----
+
 #' Check Population Data Quality
 #'
 #' Validation checks on population data from POLIS and returns flagged rows.
@@ -295,7 +298,7 @@ check_pop_data_quality <- function(pop_rds, spatial_scale) {
         }
 
         assertr_result <- guid_age_data |>
-          assertr::insist(assertr::within_n_mads(2), Value,
+          assertr::insist(assertr::within_n_sds(2), Value,
             error_fun = assertr::error_df_return
           )
 
@@ -380,7 +383,7 @@ check_pop_data_quality <- function(pop_rds, spatial_scale) {
 
   # Summarize outliers by GUID and age group
   outlier_summaries <- lapply(age_groups, \(age_group) {
-    col_name <- paste0("outlier_(+/-2mad)_", age_group)
+    col_name <- paste0("outside_2_sd", age_group)
     outlier_data <- outlier_results[[age_group]]
 
     if (is.null(outlier_data) || nrow(outlier_data) == 0) {

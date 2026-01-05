@@ -7,10 +7,10 @@
 missing_required_agegroups(present_agegroups)
 }
 \arguments{
-\item{present_agegroups}{Character vector of age group codes.}
+\item{present_agegroups}{\code{str} Character vector of age group codes.}
 }
 \value{
-NA_character_ if all present, else string of missing age groups.
+\code{str} \code{NA} if all present, otherwise a string of missing age groups.
 }
 \description{
 Check if all required age groups are present
