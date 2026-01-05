@@ -7,19 +7,19 @@
 summarize_conflicting_parents(pop_data, guid_col)
 }
 \arguments{
-\item{pop_data}{Tibble containing population data.}
+\item{pop_data}{\code{tibble} Population data.}
 
-\item{guid_col}{String name of the GUID column to summarize.}
+\item{guid_col}{\code{str} Name of the GUID column to summarize.}
 }
 \value{
-A tibble of GUIDs with conflicting parent mappings.
+\code{tibble} Summary dataset of GUIDs with conflicting parent mappings.
 }
 \description{
-Returns admin GUIDs that map to multiple parent admin units, with the
+Returns the admin GUIDs that map to multiple parent admin units, with the
 conflicting parent GUIDs listed.
+\itemize{
+\item For "Admin2GUID", reports conflicts against Admin1GUID and Admin0GUID.
+\item For "Admin1GUID", reports conflicts against Admin0GUID.
 }
-\details{
-For "Admin2GUID", reports conflicts against Admin1GUID and Admin0GUID.
-For "Admin1GUID", reports conflicts against Admin0GUID.
 }
 \keyword{internal}

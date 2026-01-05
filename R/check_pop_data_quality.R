@@ -64,52 +64,61 @@ find_conflicting_admins <- function(pop_data, child_admin_col, parent_admin_col,
 
 #' Summarize conflicting parent admins per GUID
 #'
-#' Returns admin GUIDs that map to multiple parent admin units, with the
+#' @description
+#' Returns the admin GUIDs that map to multiple parent admin units, with the
 #' conflicting parent GUIDs listed.
 #'
-#' For "Admin2GUID", reports conflicts against Admin1GUID and Admin0GUID.
-#' For "Admin1GUID", reports conflicts against Admin0GUID.
+#'  - For "Admin2GUID", reports conflicts against Admin1GUID and Admin0GUID.
+#'  - For "Admin1GUID", reports conflicts against Admin0GUID.
 #'
-#' @param pop_data Tibble containing population data.
-#' @param guid_col String name of the GUID column to summarize.
+#' @param pop_data `tibble` Population data.
+#' @param guid_col `str` Name of the GUID column to summarize.
 #'
-#' @return A tibble of GUIDs with conflicting parent mappings.
+#' @returns `tibble` Summary dataset of GUIDs with conflicting parent mappings.
 #'
 #' @keywords internal
 summarize_conflicting_parents <- function(pop_data, guid_col) {
-  if (guid_col == "Admin2GUID") {
-    admin1_conflicts <- find_conflicting_admins(
-      pop_data, "Admin2GUID", "Admin1GUID",
-      return_details = TRUE
-    ) |>
-      dplyr::rename(conflicting_admin1 = conflicting_parents)
-    admin0_conflicts <- find_conflicting_admins(
-      pop_data, "Admin2GUID", "Admin0GUID",
-      return_details = TRUE
-    ) |>
-      dplyr::rename(conflicting_admin0 = conflicting_parents)
 
-    pop_data |>
-      dplyr::distinct(Admin2GUID) |>
-      dplyr::left_join(admin1_conflicts, by = "Admin2GUID") |>
-      dplyr::left_join(admin0_conflicts, by = "Admin2GUID") |>
-      dplyr::filter(!is.na(conflicting_admin1) | !is.na(conflicting_admin0)) |>
-      dplyr::select(Admin2GUID, conflicting_admin1, conflicting_admin0)
-  } else if (guid_col == "Admin1GUID") {
-    find_conflicting_admins(
-      pop_data, "Admin1GUID", "Admin0GUID",
-      return_details = TRUE
-    ) |>
-      dplyr::rename(conflicting_admin0 = conflicting_parents) |>
-      dplyr::mutate(conflicting_admin1 = NA_character_) |>
-      dplyr::select(Admin1GUID, conflicting_admin1, conflicting_admin0)
-  } else {
-    dplyr::tibble(
-      Admin0GUID = character(),
-      conflicting_admin1 = character(),
-      conflicting_admin0 = character()
-    )
-  }
+  conflicts <- switch(guid_col,
+                      "Admin2GUID" = {
+                        admin1_conflicts <- find_conflicting_admins(
+                          pop_data, "Admin2GUID", "Admin1GUID",
+                          return_details = TRUE
+                        ) |>
+                          dplyr::rename(conflicting_admin1 = conflicting_parents)
+                        admin0_conflicts <- find_conflicting_admins(
+                          pop_data, "Admin2GUID", "Admin0GUID",
+                          return_details = TRUE
+                        ) |>
+                          dplyr::rename(conflicting_admin0 = conflicting_parents)
+
+                        pop_data |>
+                          dplyr::distinct(Admin2GUID) |>
+                          dplyr::left_join(admin1_conflicts, by = "Admin2GUID") |>
+                          dplyr::left_join(admin0_conflicts, by = "Admin2GUID") |>
+                          dplyr::filter(!is.na(conflicting_admin1) | !is.na(conflicting_admin0)) |>
+                          dplyr::select(Admin2GUID, conflicting_admin1, conflicting_admin0)
+                      },
+                      "Admin1GUID" = {
+                        find_conflicting_admins(
+                          pop_data, "Admin1GUID", "Admin0GUID",
+                          return_details = TRUE
+                        ) |>
+                          dplyr::rename(conflicting_admin0 = conflicting_parents) |>
+                          dplyr::mutate(conflicting_admin1 = NA_character_) |>
+                          dplyr::select(Admin1GUID, conflicting_admin1, conflicting_admin0)
+                      },
+                      {
+                        dplyr::tibble(
+                          Admin0GUID = character(),
+                          conflicting_admin1 = character(),
+                          conflicting_admin0 = character()
+                        )
+                      }
+                      )
+
+  return(conflicts)
+
 }
 
 #' Create unique parent predicate per admin GUID for assertr validation
