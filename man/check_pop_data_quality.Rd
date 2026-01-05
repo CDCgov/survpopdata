@@ -4,17 +4,21 @@
 \alias{check_pop_data_quality}
 \title{Check Population Data Quality}
 \usage{
-check_pop_data_quality(pop_rds, spatial_scale)
+check_pop_data_quality(pop_data, dataset_source = 2)
 }
 \arguments{
-\item{pop_rds}{Tibble containing population data from POLIS.}
+\item{dataset_source}{\code{int} FKDataSet_ID, defaults to 2.}
 
-\item{spatial_scale}{Geographic level: "ctry", "prov", or "dist".}
+\item{pop_rds}{\code{tibble} Population data from POLIS. Output of \link{load_polis_pop}.}
 }
 \value{
-A tibble with one row per GUID that has validation issues.
+\code{tibble} Summary table with one row per GUID that has validation issues.
 Returns empty tibble with correct structure if all checks pass.
-
+}
+\description{
+Validation checks on population data from POLIS and returns flagged rows.
+}
+\details{
 Validation checks include:
 \itemize{
 \item Required columns exist
@@ -22,20 +26,25 @@ Validation checks include:
 \item Value is non-negative
 \item StartDate is not after EndDate
 \item CreatedDate and UpdatedDate are not in the future
-\item Year matches the year in StartDate
 \item Each Admin GUID has all three age groups (0-5Y, 0-15Y, ALL)
 \item Each Admin GUID maps to a single parent admin
-\item Value is within 2 standard deviations of the mean
+\item Value is within 2 median absolute deviation per admin and age group
 }
+
+There are several data sources (from the \code{FK_DataSetId} column).They include:
+\itemize{
+\item 1: Unknown
+\item 2: POLIS default
+\item 17: Unknown
+\item 19: country population data
+\item 41: LandScan data
 }
-\description{
-Validation checks on population data from POLIS and returns flagged rows.
 }
 \examples{
 \dontrun{
-check_pop_data_quality(raw_dist_pop, spatial_scale = "dist")
-check_pop_data_quality(raw_prov_pop, spatial_scale = "prov")
-check_pop_data_quality(raw_prov_pop, spatial_scale = "ctry")
+check_pop_data_quality(raw_dist_pop)
+check_pop_data_quality(raw_prov_pop)
+check_pop_data_quality(raw_prov_pop)
 }
 
 }

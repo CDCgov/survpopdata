@@ -200,7 +200,7 @@ create_agegroup_predicate <- function(guids_with_missing_agegroups) {
 #'
 get_guid_missing_age_groups <- function(pop_data, guid_col) {
 
-  missing_agegroups_df <- pop_rds |>
+  missing_agegroups_df <- pop_data |>
     dplyr::filter(!is.na(!!dplyr::sym(guid_col))) |>
     dplyr::group_by(!!dplyr::sym(guid_col)) |>
     dplyr::summarise(
@@ -224,7 +224,7 @@ get_guid_missing_age_groups <- function(pop_data, guid_col) {
 #' Validation checks on population data from POLIS and returns flagged rows.
 #'
 #' @param pop_rds `tibble` Population data from POLIS. Output of [load_polis_pop].
-#' @param spatial_scale `str` Geographic level. Valid values are `"ctry"`, `"prov"`, or `"dist"`.
+#' @param dataset_source `int` FKDataSet_ID, defaults to 2.
 #'
 #' @returns `tibble` Summary table with one row per GUID that has validation issues.
 #' Returns empty tibble with correct structure if all checks pass.
@@ -253,13 +253,21 @@ get_guid_missing_age_groups <- function(pop_data, guid_col) {
 #'
 #' @examples
 #' \dontrun{
-#' check_pop_data_quality(raw_dist_pop, spatial_scale = "dist")
-#' check_pop_data_quality(raw_prov_pop, spatial_scale = "prov")
-#' check_pop_data_quality(raw_prov_pop, spatial_scale = "ctry")
+#' check_pop_data_quality(raw_dist_pop)
+#' check_pop_data_quality(raw_prov_pop)
+#' check_pop_data_quality(raw_prov_pop)
 #' }
 #'
 #' @export
-check_pop_data_quality <- function(pop_data, spatial_scale, dataset_source = 2) {
+check_pop_data_quality <- function(pop_data, dataset_source = 2) {
+
+  spatial_scale <- dplyr::case_when(
+    "Admin2GUID" %in% names(pop_data) ~ "dist",
+    "Admin1GUID" %in% names(pop_data) ~ "prov",
+    "Admin0GUID" %in% names(pop_data) ~ "ctry"
+  )
+
+  cli::cli_alert_info(paste0("Detected that pop data is at the ", spatial_scale, " spatial scale."))
 
   # Set GUID column
   guid_col <- switch(spatial_scale,
@@ -283,7 +291,7 @@ check_pop_data_quality <- function(pop_data, spatial_scale, dataset_source = 2) 
 
   # Compute missing age groups per GUID
   missing_agegroups_df <- get_guid_missing_age_groups(pop_data, guid_col)
-  guids_with_missing_agegroups <- missing_age_groups_df |> dplyr::pull(guid_col)
+  guids_with_missing_agegroups <- missing_agegroups_df |> dplyr::pull(guid_col)
 
   # Create predicate generators
   has_all_agegroups <- create_agegroup_predicate(guids_with_missing_agegroups)
@@ -317,41 +325,82 @@ check_pop_data_quality <- function(pop_data, spatial_scale, dataset_source = 2) 
   age_groups <- c("0-5Y", "0-15Y", "ALL")
   unique_guids <- unique(pop_data[[guid_col]])
 
+  ## Outlier checking functions ----
+
+  # Filters data to a single (guid, age_group) slice and adds an index
+  filter_guid_age_data <- function(pop_data, guid_col, guid, age_group) {
+    pop_data |>
+      dplyr::filter(
+        !!dplyr::sym(guid_col) == guid,
+        AgeGroupCode == age_group,
+        !is.na(Value),
+        Value >= 0
+      ) |>
+      dplyr::mutate(index = dplyr::row_number())
+  }
+
+
+
+  # Runs the assertr check and returns an outlier dataframe (or NULL if none)
+  compute_outliers_df <- function(guid_age_data) {
+
+    # Need at least 2 points to compute MAD-based outliers
+    if (nrow(guid_age_data) < 2 |
+        # MAD cannot be zero
+        # Using .Machine$double.eps as a tolerance threshold to because
+        # of floating point errors
+        mad(guid_age_data$Value, na.rm = T) <= .Machine$double.eps) {
+      return(NULL)
+    }
+
+    res <- guid_age_data |>
+      assertr::insist(
+        assertr::within_n_mads(2),
+        Value,
+        error_fun = assertr::error_df_return)
+
+    # If the result has a "verb" column, it's an assertr error dataframe
+    if ("verb" %in% names(res)) {
+      # Join back helpful context (guid, year)
+      dplyr::left_join(
+        res,
+        guid_age_data |>
+          dplyr::select(
+            index,
+            dplyr::all_of(guid_col),
+            Year
+          ),
+        by = "index"
+      )
+
+    } else {
+
+      return(NULL)
+
+    }
+  }
+
+
+  # Orchestrates per guid + age group
+  outliers_for_guid_age <- function(pop_data, guid_col, guid, age_group) {
+    guid_age_data <- filter_guid_age_data(pop_data, guid_col, guid, age_group)
+
+    return(compute_outliers_df(guid_age_data))
+  }
+
   outlier_results <- setNames(
-    lapply(age_groups, \(age_group) {
-      lapply(unique_guids, \(guid) {
-        guid_age_data <- pop_data |>
-          dplyr::filter(
-            !!dplyr::sym(guid_col) == guid,
-            AgeGroupCode == age_group,
-            !is.na(Value),
-            Value >= 0
-          ) |>
-          dplyr::mutate(index = dplyr::row_number())
-
-        if (nrow(guid_age_data) < 2) {
-          return(NULL)
-        }
-
-        assertr_result <- guid_age_data |>
-          assertr::insist(assertr::within_n_sds(2), Value,
-            error_fun = assertr::error_df_return
-          )
-
-        if ("verb" %in% names(assertr_result)) {
-          assertr_result |>
-            dplyr::left_join(
-              guid_age_data |> dplyr::select(index, !!dplyr::sym(guid_col), Year),
-              by = "index"
-            )
-        } else {
-          NULL
-        }
+    purrr::map(age_groups, \(age_group) {
+      purrr::map(unique_guids, \(guid) {
+        outliers_for_guid_age(pop_data, guid_col, guid, age_group)
       }) |>
         dplyr::bind_rows()
     }),
     age_groups
   )
+
+  if (any(sapply(outlier_results, nrow) == 0)) {
+    cli::cli_alert_success("No outliers in population values across age groups.")
+  }
 
   # Check if errors were returned
   has_errors <- nrow(validated) > 0 ||
@@ -419,7 +468,7 @@ check_pop_data_quality <- function(pop_data, spatial_scale, dataset_source = 2) 
 
   # Summarize outliers by GUID and age group
   outlier_summaries <- lapply(age_groups, \(age_group) {
-    col_name <- paste0("outside_2_sd", age_group)
+    col_name <- paste0("outside_2_mad_", age_group)
     outlier_data <- outlier_results[[age_group]]
 
     if (is.null(outlier_data) || nrow(outlier_data) == 0) {
