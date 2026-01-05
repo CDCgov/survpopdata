@@ -216,89 +216,56 @@ get_guid_missing_age_groups <- function(pop_data, guid_col) {
   return(missing_agegroups_df)
 }
 
-## Outlier checking mini functions ----
-
-#' Filters data to a single (guid, age_group) slice and adds an index
+#' Detect population outliers
+#'
+#' @description
+#' Detects the outliers in population counts for each age group and GUID.
 #'
 #' @inheritParams get_guid_missing_age_groups
-#' @param guid `str` GUID to search for.
-#' @param age_group `str` Age group to search for.
+#' @param age_groups `str` Age groups to analyze. By default, analyzes for the
+#' under 5, under 15, and total population.
 #'
-#' @returns `str` Pop data filtered to a particular GUID and age group
+#' @returns `list` A list containing outliers per age group analyzed.
 #' @keywords internal
 #'
-filter_guid_age_data <- function(pop_data, guid_col, guid, age_group) {
-  pop_data |>
+detect_pop_outliers <- function(pop_data,
+                                       guid_col,
+                                       age_groups = c("0-5Y", "0-15Y", "ALL")) {
+
+  # One pass over the data
+  outlier_df <- pop_data |>
     dplyr::filter(
-      !!dplyr::sym(guid_col) == guid,
-      AgeGroupCode == age_group,
+      AgeGroupCode %in% age_groups,
       !is.na(Value),
       Value >= 0
     ) |>
-    dplyr::mutate(index = dplyr::row_number())
+    dplyr::arrange(!!dplyr::sym(guid_col), AgeGroupCode, Year) %>%
+    dplyr::group_by(!!dplyr::sym(guid_col), AgeGroupCode) %>%
+    dplyr::mutate(
+      index = dplyr::row_number(),
+      .mad = mad(Value, na.rm = TRUE),
+      .med = median(Value, na.rm = TRUE),
+      .n   = dplyr::n()
+    ) |>
+    # Guards: need at least 2 points and non-zero MAD
+    dplyr::filter(.n >= 2, .mad > .Machine$double.eps) |>
+    # Calculating by hand instead so it can be vectorized
+    dplyr::mutate(robust_z = abs(Value - .med) / .mad) |>
+    # Threshold: within_n_mads(2) -> z > 2 is an outlier
+    dplyr::filter(robust_z > 2) %>%
+    dplyr::ungroup() %>%
+    dplyr::select(index, !!dplyr::sym(guid_col), Year, AgeGroupCode, Value, robust_z)
+
+  # Return a named list like your current object
+  outlier_list <- setNames(
+    purrr::map(age_groups, \(ag) dplyr::filter(outlier_df, AgeGroupCode == ag)),
+    age_groups
+  )
+
+  return(outlier_list)
+
 }
 
-#' Checks whether outliers exist among age groups
-#'
-#' @param guid_age_data `tibble` Output of [filter_guid_age_data].
-#'
-#' @returns `tibble` Summary of outlier detection
-#' @keywords internal
-#'
-compute_outliers_df <- function(guid_age_data, guid_col) {
-
-  # Need at least 2 points to compute MAD-based outliers
-  if (nrow(guid_age_data) < 2 |
-      # MAD cannot be zero
-      # Using .Machine$double.eps as a tolerance threshold to because
-      # of floating point errors
-      mad(guid_age_data$Value, na.rm = T) <= .Machine$double.eps) {
-    return(NULL)
-  }
-
-  res <- guid_age_data |>
-    assertr::insist(
-      assertr::within_n_mads(2),
-      Value,
-      error_fun = assertr::error_df_return)
-
-  # If the result has a "verb" column, it's an assertr error dataframe
-  if ("verb" %in% names(res)) {
-    # Join back helpful context (guid, year)
-    dplyr::left_join(
-      res,
-      guid_age_data |>
-        dplyr::select(
-          index,
-          dplyr::any_of(guid_col),
-          Year
-        ),
-      by = "index"
-    )
-
-  } else {
-
-    return(NULL)
-
-  }
-}
-
-
-#' Orchestrates per guid + age group
-#'
-#' @description
-#' Filters and compute outliers for population values in the pop data
-#'
-#' @inheritParams filter_guid_age_data
-#'
-#' @returns `tibble` Summary containing outliers per age group.
-#' @keywords internal
-#'
-outliers_for_guid_age <- function(pop_data, guid_col, guid, age_group) {
-  guid_age_data <- filter_guid_age_data(pop_data, guid_col, guid, age_group)
-
-  return(compute_outliers_df(guid_age_data, guid_col))
-}
 
 # Public function ----
 
@@ -415,15 +382,7 @@ check_pop_data_quality <- function(pop_data, dataset_source = 2) {
   age_groups <- c("0-5Y", "0-15Y", "ALL")
   unique_guids <- unique(pop_data[[guid_col]])
 
-  outlier_results <- setNames(
-    purrr::map(age_groups, \(age_group) {
-      purrr::map(unique_guids, \(guid) {
-        outliers_for_guid_age(pop_data, guid_col, guid, age_group)
-      }) |>
-        dplyr::bind_rows()
-    }),
-    age_groups
-  )
+  outlier_results <- detect_pop_outliers(pop_data, guid_col)
 
   if (any(sapply(outlier_results, nrow) == 0)) {
     cli::cli_alert_success("No outliers in population values across age groups.")
@@ -540,7 +499,8 @@ check_pop_data_quality <- function(pop_data, dataset_source = 2) {
   result <- dplyr::inner_join(pop_data |>
                        dplyr::select(dplyr::any_of(guid_name_col),
                                      dplyr::any_of(c("Admin0GUID", "Admin1GUID",
-                                                     "Admin2GUID"))) |>
+                                                     "Admin2GUID"))
+                                     ) |>
                        dplyr::distinct()
                      , result, by = join_cols)
 
