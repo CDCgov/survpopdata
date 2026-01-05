@@ -216,6 +216,90 @@ get_guid_missing_age_groups <- function(pop_data, guid_col) {
   return(missing_agegroups_df)
 }
 
+## Outlier checking mini functions ----
+
+#' Filters data to a single (guid, age_group) slice and adds an index
+#'
+#' @inheritParams get_guid_missing_age_groups
+#' @param guid `str` GUID to search for.
+#' @param age_group `str` Age group to search for.
+#'
+#' @returns `str` Pop data filtered to a particular GUID and age group
+#' @keywords internal
+#'
+filter_guid_age_data <- function(pop_data, guid_col, guid, age_group) {
+  pop_data |>
+    dplyr::filter(
+      !!dplyr::sym(guid_col) == guid,
+      AgeGroupCode == age_group,
+      !is.na(Value),
+      Value >= 0
+    ) |>
+    dplyr::mutate(index = dplyr::row_number())
+}
+
+#' Checks whether outliers exist among age groups
+#'
+#' @param guid_age_data `tibble` Output of [filter_guid_age_data].
+#'
+#' @returns `tibble` Summary of outlier detection
+#' @keywords internal
+#'
+compute_outliers_df <- function(guid_age_data, guid_col) {
+
+  # Need at least 2 points to compute MAD-based outliers
+  if (nrow(guid_age_data) < 2 |
+      # MAD cannot be zero
+      # Using .Machine$double.eps as a tolerance threshold to because
+      # of floating point errors
+      mad(guid_age_data$Value, na.rm = T) <= .Machine$double.eps) {
+    return(NULL)
+  }
+
+  res <- guid_age_data |>
+    assertr::insist(
+      assertr::within_n_mads(2),
+      Value,
+      error_fun = assertr::error_df_return)
+
+  # If the result has a "verb" column, it's an assertr error dataframe
+  if ("verb" %in% names(res)) {
+    # Join back helpful context (guid, year)
+    dplyr::left_join(
+      res,
+      guid_age_data |>
+        dplyr::select(
+          index,
+          dplyr::any_of(guid_col),
+          Year
+        ),
+      by = "index"
+    )
+
+  } else {
+
+    return(NULL)
+
+  }
+}
+
+
+#' Orchestrates per guid + age group
+#'
+#' @description
+#' Filters and compute outliers for population values in the pop data
+#'
+#' @inheritParams filter_guid_age_data
+#'
+#' @returns `tibble` Summary containing outliers per age group.
+#' @keywords internal
+#'
+outliers_for_guid_age <- function(pop_data, guid_col, guid, age_group) {
+  guid_age_data <- filter_guid_age_data(pop_data, guid_col, guid, age_group)
+
+  return(compute_outliers_df(guid_age_data, guid_col))
+}
+
 # Public function ----
 
 #' Check Population Data Quality
@@ -276,6 +360,12 @@ check_pop_data_quality <- function(pop_data, dataset_source = 2) {
     "dist" = "Admin2GUID"
   )
 
+  # Name columns
+  guid_name_col <- switch(spatial_scale,
+                          "ctry" = "Admin0Name",
+                          "prov" = c("Admin0Name", "Admin1Name"),
+                          "dist" = c("Admin0Name", "Admin1Name", "Admin2Name"))
+
   # Filter POLIS source for validation and spatial scale filter
   pop_data <- pop_data |>
     dplyr::filter(FK_DataSetId == dataset_source) |>
@@ -325,69 +415,6 @@ check_pop_data_quality <- function(pop_data, dataset_source = 2) {
   age_groups <- c("0-5Y", "0-15Y", "ALL")
   unique_guids <- unique(pop_data[[guid_col]])
 
-  ## Outlier checking functions ----
-
-  # Filters data to a single (guid, age_group) slice and adds an index
-  filter_guid_age_data <- function(pop_data, guid_col, guid, age_group) {
-    pop_data |>
-      dplyr::filter(
-        !!dplyr::sym(guid_col) == guid,
-        AgeGroupCode == age_group,
-        !is.na(Value),
-        Value >= 0
-      ) |>
-      dplyr::mutate(index = dplyr::row_number())
-  }
-
-
-
-  # Runs the assertr check and returns an outlier dataframe (or NULL if none)
-  compute_outliers_df <- function(guid_age_data) {
-
-    # Need at least 2 points to compute MAD-based outliers
-    if (nrow(guid_age_data) < 2 |
-        # MAD cannot be zero
-        # Using .Machine$double.eps as a tolerance threshold to because
-        # of floating point errors
-        mad(guid_age_data$Value, na.rm = T) <= .Machine$double.eps) {
-      return(NULL)
-    }
-
-    res <- guid_age_data |>
-      assertr::insist(
-        assertr::within_n_mads(2),
-        Value,
-        error_fun = assertr::error_df_return)
-
-    # If the result has a "verb" column, it's an assertr error dataframe
-    if ("verb" %in% names(res)) {
-      # Join back helpful context (guid, year)
-      dplyr::left_join(
-        res,
-        guid_age_data |>
-          dplyr::select(
-            index,
-            dplyr::all_of(guid_col),
-            Year
-          ),
-        by = "index"
-      )
-
-    } else {
-
-      return(NULL)
-
-    }
-  }
-
-
-  # Orchestrates per guid + age group
-  outliers_for_guid_age <- function(pop_data, guid_col, guid, age_group) {
-    guid_age_data <- filter_guid_age_data(pop_data, guid_col, guid, age_group)
-
-    return(compute_outliers_df(guid_age_data))
-  }
-
   outlier_results <- setNames(
     purrr::map(age_groups, \(age_group) {
       purrr::map(unique_guids, \(guid) {
@@ -400,6 +427,8 @@ check_pop_data_quality <- function(pop_data, dataset_source = 2) {
 
   if (any(sapply(outlier_results, nrow) == 0)) {
     cli::cli_alert_success("No outliers in population values across age groups.")
+  } else {
+    cli::cli_alert_success("Outliers detected in population values.")
   }
 
   # Check if errors were returned
@@ -500,6 +529,20 @@ check_pop_data_quality <- function(pop_data, dataset_source = 2) {
       dplyr::any_of(c("Admin0GUID", "Admin1GUID", "Admin2GUID", "sources")),
       dplyr::where(~ any(!is.na(.)))
     )
+
+  # Add names
+  join_cols <- switch(spatial_scale,
+                      "ctry" = "Admin0GUID",
+                      "prov" = c("Admin0GUID","Admin1GUID"),
+                      "dist" = c("Admin0GUID", "Admin1GUID", "Admin2GUID")
+                      )
+
+  result <- dplyr::inner_join(pop_data |>
+                       dplyr::select(dplyr::any_of(guid_name_col),
+                                     dplyr::any_of(c("Admin0GUID", "Admin1GUID",
+                                                     "Admin2GUID"))) |>
+                       dplyr::distinct()
+                     , result, by = join_cols)
 
   # Output
   message(if (nrow(result) == 0) {
