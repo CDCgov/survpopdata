@@ -123,44 +123,53 @@ summarize_conflicting_parents <- function(pop_data, guid_col) {
 
 #' Create unique parent predicate per admin GUID for assertr validation
 #'
+#' @description
 #' Predicate that checks whether each admin GUID maps to a single parent admin.
 #'
-#' For "Admin2GUID", checks uniqueness against Admin1GUID and Admin0GUID.
-#' For "Admin1GUID", checks uniqueness against Admin0GUID.
+#' - For "Admin2GUID", checks uniqueness against Admin1GUID and Admin0GUID.
+#' - For "Admin1GUID", checks uniqueness against Admin0GUID.
 #'
 #' @param pop_data Tibble containing population data.
 #' @param guid_col String name of the GUID column to validate.
 #'
-#' @return A predicate function for use with assertr.
+#' @returns `fun` A predicate function for use with assertr.
 #'
 #' @keywords internal
 create_parent_predicate <- function(pop_data, guid_col) {
-  if (guid_col == "Admin2GUID") {
-    conflicting_with_admin1 <- find_conflicting_admins(
-      pop_data, "Admin2GUID", "Admin1GUID"
-    )
-    conflicting_with_admin0 <- find_conflicting_admins(
-      pop_data, "Admin2GUID", "Admin0GUID"
-    )
-    all_conflicting_guids <- unique(c(
-      conflicting_with_admin1,
-      conflicting_with_admin0
-    ))
-    function(column_values) {
-      function(value) !(value %in% all_conflicting_guids) | is.na(value)
-    }
-  } else if (guid_col == "Admin1GUID") {
-    conflicting_with_admin0 <- find_conflicting_admins(
-      pop_data, "Admin1GUID", "Admin0GUID"
-    )
-    function(column_values) {
-      function(value) !(value %in% conflicting_with_admin0) | is.na(value)
-    }
-  } else {
-    function(column_values) {
-      function(value) TRUE
-    }
-  }
+
+  predicate_function <- switch(guid_col,
+         "Admin2GUID" = {
+           conflicting_with_admin1 <- find_conflicting_admins(
+             pop_data, "Admin2GUID", "Admin1GUID"
+           )
+           conflicting_with_admin0 <- find_conflicting_admins(
+             pop_data, "Admin2GUID", "Admin0GUID"
+           )
+           all_conflicting_guids <- unique(c(
+             conflicting_with_admin1,
+             conflicting_with_admin0
+           ))
+           function(column_values) {
+             function(value) !(value %in% all_conflicting_guids) | is.na(value)
+           }
+         },
+         "Admin1GUID" = {
+           conflicting_with_admin0 <- find_conflicting_admins(
+             pop_data, "Admin1GUID", "Admin0GUID"
+           )
+           function(column_values) {
+             function(value) !(value %in% conflicting_with_admin0) | is.na(value)
+           }
+         },
+         {
+           function(column_values) {
+             function(value) TRUE
+           }
+         }
+         )
+
+  return(predicate_function)
+
 }
 
 #' Create age group predicate per GUID for assertr validation

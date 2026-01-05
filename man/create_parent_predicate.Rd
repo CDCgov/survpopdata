@@ -12,13 +12,13 @@ create_parent_predicate(pop_data, guid_col)
 \item{guid_col}{String name of the GUID column to validate.}
 }
 \value{
-A predicate function for use with assertr.
+\code{fun} A predicate function for use with assertr.
 }
 \description{
 Predicate that checks whether each admin GUID maps to a single parent admin.
+\itemize{
+\item For "Admin2GUID", checks uniqueness against Admin1GUID and Admin0GUID.
+\item For "Admin1GUID", checks uniqueness against Admin0GUID.
 }
-\details{
-For "Admin2GUID", checks uniqueness against Admin1GUID and Admin0GUID.
-For "Admin1GUID", checks uniqueness against Admin0GUID.
 }
 \keyword{internal}
