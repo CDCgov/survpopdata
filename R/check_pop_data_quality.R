@@ -174,11 +174,12 @@ create_parent_predicate <- function(pop_data, guid_col) {
 
 #' Create age group predicate per GUID for assertr validation
 #'
+#' @description
 #' Predicate that checks whether each GUID has required age group data.
 #'
-#' @param guids_with_missing_agegroups GUIDs with missing age groups.
+#' @param guids_with_missing_agegroups `str` GUIDs with missing age groups.
 #'
-#' @return A predicate function for use with assertr.
+#' @returns `fun` A predicate function for use with assertr.
 #'
 #' @keywords internal
 create_agegroup_predicate <- function(guids_with_missing_agegroups) {

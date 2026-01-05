@@ -7,10 +7,10 @@
 create_agegroup_predicate(guids_with_missing_agegroups)
 }
 \arguments{
-\item{guids_with_missing_agegroups}{GUIDs with missing age groups.}
+\item{guids_with_missing_agegroups}{\code{str} GUIDs with missing age groups.}
 }
 \value{
-A predicate function for use with assertr.
+\code{fun} A predicate function for use with assertr.
 }
 \description{
 Predicate that checks whether each GUID has required age group data.
