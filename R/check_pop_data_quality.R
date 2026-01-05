@@ -19,46 +19,47 @@ missing_required_agegroups <- function(present_agegroups) {
 
 #' Find conflicting admin mappings
 #'
+#' @description
 #' Identifies child admin units that map to multiple parent admin units.
 #'
-#' @param pop_data Tibble containing population data.
-#' @param child_admin_col String of child admin column (e.g., "Admin2GUID").
-#' @param parent_admin_col String of parent admin column (e.g., "Admin1GUID").
-#' @param return_details Logical.
-#'   If TRUE, return a tibble with conflicting parent GUIDs per child.
-#'   If FALSE, return the child GUIDs with multiple parents.
+#' @param pop_data `tibble` Population dataset.
+#' @param child_admin_col `str` Column name of the next lower admin column. For example,
+#' "Admin2GUID" if `pop_data` contains the province population dataset.
+#' @param parent_admin_col `str` Parent admin column. For example, "Admin1GUID"
+#' if `pop_data` contains the province population dataset.
+#' @param return_details `logical`
+#'   If TRUE, returns a tibble with conflicting parent GUIDs per child.
+#'   If FALSE, returns the child GUIDs with multiple parents.
 #'
-#' @return Tibble with conflict details or vector of conflicting GUIDs.
+#' @returns `tibble` Summary tibble with conflict details or vector of conflicting GUIDs.
 #'
-#' @keywords internal
-find_conflicting_admins <- function(
-  pop_data, child_admin_col, parent_admin_col,
-  return_details = FALSE
-) {
-  sym <- dplyr::sym
+#' @keywords internals
+find_conflicting_admins <- function(pop_data, child_admin_col, parent_admin_col,
+                                    return_details = FALSE) {
 
   conflicts <- pop_data |>
-    dplyr::filter(
-      !is.na(!!sym(child_admin_col)), !!sym(child_admin_col) != ""
-    ) |>
-    dplyr::distinct(!!sym(child_admin_col), !!sym(parent_admin_col)) |>
-    dplyr::group_by(!!sym(child_admin_col)) |>
-    dplyr::filter(dplyr::n_distinct(!!sym(parent_admin_col)) > 1)
+    dplyr::filter(!is.na(!!dplyr::sym(child_admin_col)),
+                  !!dplyr::sym(child_admin_col) != "") |>
+    dplyr::distinct(!!dplyr::sym(child_admin_col), !!dplyr::sym(parent_admin_col)) |>
+    dplyr::group_by(!!dplyr::sym(child_admin_col)) |>
+    dplyr::filter(dplyr::n_distinct(!!dplyr::sym(parent_admin_col)) > 1)
 
   if (return_details) {
-    conflicts |>
+    error_summary <- conflicts |>
       dplyr::summarise(
         conflicting_parents = paste(
-          unique(!!sym(parent_admin_col)),
+          unique(!!dplyr::sym(parent_admin_col)),
           collapse = ", "
         ),
         .groups = "drop"
       )
   } else {
-    conflicts |>
-      dplyr::pull(!!sym(child_admin_col)) |>
+    error_summary <- conflicts |>
+      dplyr::pull(!!dplyr::sym(child_admin_col)) |>
       unique()
   }
+
+  return(error_summary)
 }
 
 #' Summarize conflicting parent admins per GUID

@@ -12,20 +12,22 @@ find_conflicting_admins(
 )
 }
 \arguments{
-\item{pop_data}{Tibble containing population data.}
+\item{pop_data}{\code{tibble} Population dataset.}
 
-\item{child_admin_col}{String of child admin column (e.g., "Admin2GUID").}
+\item{child_admin_col}{\code{str} Column name of the next lower admin column. For example,
+"Admin2GUID" if \code{pop_data} contains the province population dataset.}
 
-\item{parent_admin_col}{String of parent admin column (e.g., "Admin1GUID").}
+\item{parent_admin_col}{\code{str} Parent admin column. For example, "Admin1GUID"
+if \code{pop_data} contains the province population dataset.}
 
-\item{return_details}{Logical.
-If TRUE, return a tibble with conflicting parent GUIDs per child.
-If FALSE, return the child GUIDs with multiple parents.}
+\item{return_details}{\code{logical}
+If TRUE, returns a tibble with conflicting parent GUIDs per child.
+If FALSE, returns the child GUIDs with multiple parents.}
 }
 \value{
-Tibble with conflict details or vector of conflicting GUIDs.
+\code{tibble} Summary tibble with conflict details or vector of conflicting GUIDs.
 }
 \description{
 Identifies child admin units that map to multiple parent admin units.
 }
-\keyword{internal}
+\keyword{internals}
