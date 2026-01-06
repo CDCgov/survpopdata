@@ -8,7 +8,7 @@ load_polis_pop(
   spatial_scale,
   edav = TRUE,
   file_loc = "GID/PEB/SIR/POLIS/data/pop.rds",
-  azcontainer = NULL
+  azcontainer = sirfunctions::get_azure_storage_connection()
 )
 }
 \arguments{
@@ -21,7 +21,7 @@ load_polis_pop(
 \item{azcontainer}{Azure storage connection}
 }
 \value{
-Tibble filtered to spatial_scale with Data_Source column
+Tibble filtered to spatial_scale with datasource column
 }
 \description{
 Load POLIS Population Data
