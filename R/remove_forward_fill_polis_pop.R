@@ -21,7 +21,7 @@ remove_forward_fill_polis_pop <- function(pop_data) {
 
   pop_data |>
     dplyr::arrange(!!dplyr::sym(guid_col), AgeGroupCode, year) |>
-    dplyr::group_by(!!dplyr::sym(guid_col), AgeGroupCode) |>
+    dplyr::group_by(!!dplyr::sym(guid_col), AgeGroupCode, FK_DataSetId) |>
     dplyr::mutate(
       prev_value = dplyr::lag(Value),
       prev_year = dplyr::lag(year),
@@ -30,6 +30,6 @@ remove_forward_fill_polis_pop <- function(pop_data) {
         year == prev_year + 1,
       Value = dplyr::if_else(is_forward_fill, NA_real_, Value)
     ) |>
-    dplyr::select(!c(prev_value, prev_year, is_forward_fill)) |>
+    dplyr::select(!c(prev_value, prev_year)) |>
     dplyr::ungroup()
 }
