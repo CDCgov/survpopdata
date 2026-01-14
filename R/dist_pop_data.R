@@ -213,19 +213,21 @@ load_jamal_pop <- function(
 #' @param file_location Path to WPP Excel file.
 #'
 #' @return Tibble with Admin0Name, year, growth_rate.
-#'
 #' @export
 load_growth_rates <- function(
     file_location = "WPP2024_GEN_F01_DEMOGRAPHIC_INDICATORS_FULL.xlsx"
 ) {
-  wpp_raw <- sirfunctions::edav_io("read", file_location, sheet = "Estimates")
+  wpp_raw <- sirfunctions::edav_io(
+    "read", file_location,
+    sheet = "Estimates"
+  )
 
-  # Find growth-rate header row
-  header_row <- which(apply(wpp_raw, 1, function(row_content) {
-    any(grepl("Population Growth Rate", row_content))
-  }))[1]
+  # Find growth-rate table header row
+  header_row <- which(apply(
+    wpp_raw, 1,
+    \(row) any(grepl("Population Growth Rate", row))
+  ))[1]
 
-  # Build table with proper names
   wpp_body <- wpp_raw[(header_row + 1):nrow(wpp_raw), ]
   colnames(wpp_body) <- wpp_raw[header_row, ]
 
@@ -236,12 +238,35 @@ load_growth_rates <- function(
       year = Year,
       growth_rate = `Population Growth Rate (percentage)`
     ) |>
-    dplyr::filter(!is.na(Admin0Name), Admin0Name != "REGION, SUBREGION, COUNTRY OR AREA *") |>
+    dplyr::filter(
+      !is.na(Admin0Name),
+      Admin0Name != "REGION, SUBREGION, COUNTRY OR AREA *"
+    ) |>
     dplyr::mutate(
       Admin0Name = toupper(Admin0Name),
+      Admin0Name = dplyr::case_when(
+        stringr::str_detect(Admin0Name, "IVOIRE") ~
+          "COTE D IVOIRE",
+        Admin0Name == "UNITED KINGDOM" ~
+          "THE UNITED KINGDOM",
+        Admin0Name == "DEM. PEOPLE'S REPUBLIC OF KOREA" ~
+          "DEMOCRATIC PEOPLE'S REPUBLIC OF KOREA",
+        Admin0Name == "STATE OF PALESTINE" ~
+          "OCCUPIED PALESTINIAN TERRITORY, INCLUDING EAST JERUSALEM",
+        TRUE ~ Admin0Name
+      ),
       year = as.numeric(year),
-      growth_rate = as.numeric(growth_rate)
-    )
+      growth_rate = as.numeric(growth_rate),
+      growth_rate = dplyr::if_else(
+        !is.na(growth_rate) & growth_rate < 0,
+        1 / (-1 * growth_rate),
+        growth_rate
+      )
+    ) |>
+    dplyr::arrange(Admin0Name, dplyr::desc(year)) |>
+    dplyr::group_by(Admin0Name) |>
+    dplyr::slice(1) |>
+    dplyr::ungroup()
 }
 
 #' Load district spatial table (district-year long)
@@ -404,7 +429,7 @@ dist_pop_data <- function(pop_data, output_file = NULL) {
     dplyr::arrange(year, .by_group = TRUE) |>
     tidyr::fill(datasource, .direction = "downup") |>
     dplyr::ungroup() |>
-    dplyr::left_join(growth_rates, by = c("ADM0_NAME" = "Admin0Name", "year" = "year"))
+    dplyr::left_join(growth_rates, by = c("ADM0_NAME" = "Admin0Name"))
 
   # Apply Growth Rate to Fill NAs
   apply_growth <- function(base_data, pop_column) {
