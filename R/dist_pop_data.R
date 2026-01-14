@@ -8,13 +8,13 @@
 #'
 #' @export
 load_pakistan_patch <- function(
-  file_location = "Data/pop/pop raw/csv files/2022_2023 Population Pakistan.csv"
+    file_location = "2022_2023 Population Pakistan.csv"
 ) {
   sirfunctions::edav_io("read", file_location) |>
     dplyr::filter(!is.na(Country)) |>
     dplyr::select(-dplyr::any_of("...12")) |>
     dplyr::rename(
-      Province = "Procince / governatore",
+      Province = "Procince / governorate",
       `2022` = "2022.00",
       `2023` = "2023.00"
     ) |>
@@ -57,10 +57,12 @@ load_pakistan_patch <- function(
 #'
 #' @export
 load_somalia_patch <- function(
-  file_2022 = "Data/pop/pop raw/csv files/AFPPOP_22.csv",
-  file_2023 = "Data/pop/pop raw/csv files/AFPPOP_23.csv",
-  file_2024 = "Data/pop/pop raw/csv files/AFPPOP_24.csv"
+    file_2022 = "AFPPOP_22.csv",
+    file_2023 = "AFPPOP_23.csv",
+    file_2024 = "AFPPOP_24.csv"
 ) {
+
+  # Parse Somalia header rows
   read_somalia_year <- function(somalia_file, year_value) {
     somalia_raw <- sirfunctions::edav_io("read", somalia_file)
     somalia_raw <- somalia_raw[8:nrow(somalia_raw), ]
@@ -70,6 +72,7 @@ load_somalia_patch <- function(
     somalia_raw
   }
 
+  # Stack yearly extracts and harmonize admin names
   dplyr::bind_rows(
     read_somalia_year(file_2022, 2022),
     read_somalia_year(file_2023, 2023),
@@ -79,8 +82,20 @@ load_somalia_patch <- function(
     dplyr::mutate(
       Admin0Name = "SOMALIA",
       datasource = "PATCH_SOMALIA",
-      PROVINCE = dplyr::case_when(PROVINCE == "BAKOOL" ~ "BAKOL", TRUE ~ PROVINCE),
-      DISTRICT = dplyr::case_when(DISTRICT == "MADINA" ~ "MEDINA", TRUE ~ DISTRICT),
+      PROVINCE = dplyr::case_when(
+        PROVINCE == "BAKOOL" ~ "BAKOL",
+        PROVINCE == "SANAQ"  ~ "SANAG",
+        PROVINCE == "MUDUG" & DISTRICT %in% c("GOLDOGOB", "JARIBAN", "GALKAYU NORTH") ~ "MUDUG PL",
+        PROVINCE == "MUDUG" & DISTRICT %in% c("HARA DHERE", "HOBYO") ~ "MUDUG GM",
+        PROVINCE == "SOUTH MUDUG" & DISTRICT == "GALKAYU SOUTH" ~ "MUDUG GM",
+        DISTRICT %in% c("GARDO", "BENDER BAYLA", "HAFUN", "RAKO", "WACIYA") ~ "KARKAR",
+        TRUE ~ PROVINCE
+      ),
+      DISTRICT = dplyr::case_when(
+        DISTRICT == "MADINA"     ~ "MEDINA",
+        DISTRICT == "HAMAR WEYN" ~ "HAMARWEYNE",
+        TRUE ~ DISTRICT
+      ),
       Total = as.numeric(gsub(",", "", Total))
     ) |>
     dplyr::select(
@@ -88,8 +103,8 @@ load_somalia_patch <- function(
       Admin1Name = PROVINCE,
       Admin2Name = DISTRICT,
       year,
-      Under5Pop = dplyr::na_if(NA_real_, NA_real_),
-      Under15Pop = dplyr::na_if(NA_real_, NA_real_),
+      Under5Pop  = NA_real_,
+      Under15Pop = NA_real_,
       Total,
       datasource
     ) |>
@@ -104,7 +119,7 @@ load_somalia_patch <- function(
 #'
 #' @export
 load_kenya_patch <- function(
-  file_location = "Data/pop/pop raw/csv files/Kenya_SubCounty_pop_2018.csv"
+    file_location = "Kenya_SubCounty_pop_2018.csv"
 ) {
   sirfunctions::edav_io("read", file_location) |>
     dplyr::mutate(dplyr::across(dplyr::everything(), toupper)) |>
@@ -169,7 +184,7 @@ load_all_patches <- function() {
 #'
 #' @export
 load_jamal_pop <- function(
-  file_location = "Data/pop/pop raw/csv files/Jamal_U15_population.csv"
+    file_location = "POPU15.csv"
 ) {
   sirfunctions::edav_io("read", file_location) |>
     dplyr::mutate(
@@ -201,17 +216,20 @@ load_jamal_pop <- function(
 #'
 #' @export
 load_growth_rates <- function(
-  file_location = "Data/pop/pop raw/csv files/WPP2024_GEN_F01_DEMOGRAPHIC_INDICATORS_FULL.xlsx"
+    file_location = "WPP2024_GEN_F01_DEMOGRAPHIC_INDICATORS_FULL.xlsx"
 ) {
   wpp_raw <- sirfunctions::edav_io("read", file_location, sheet = "Estimates")
 
+  # Find growth-rate header row
   header_row <- which(apply(wpp_raw, 1, function(row_content) {
     any(grepl("Population Growth Rate", row_content))
   }))[1]
 
+  # Build table with proper names
   wpp_body <- wpp_raw[(header_row + 1):nrow(wpp_raw), ]
   colnames(wpp_body) <- wpp_raw[header_row, ]
 
+  # Select and standardize output
   wpp_body |>
     dplyr::select(
       Admin0Name = `Region, subregion, country or area *`,
