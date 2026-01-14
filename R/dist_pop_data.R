@@ -215,7 +215,7 @@ load_jamal_pop <- function(
 #' @return Tibble with Admin0Name, year, growth_rate.
 #' @export
 load_growth_rates <- function(
-    file_location = "WPP2024_GEN_F01_DEMOGRAPHIC_INDICATORS_FULL.xlsx"
+    file_location = "WPP2024_GEN_F01_DEMOGRAPHIC_INDICATORS_COMPACT.xlsx"
 ) {
   wpp_raw <- sirfunctions::edav_io(
     "read", file_location,
