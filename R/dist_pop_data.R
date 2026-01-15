@@ -1,5 +1,4 @@
 # Private functions ----
-
 #' Load Pakistan district population patch
 #'
 #' @param file_location Path to patch file.
@@ -263,10 +262,7 @@ load_growth_rates <- function(
         growth_rate
       )
     ) |>
-    dplyr::arrange(Admin0Name, dplyr::desc(year)) |>
-    dplyr::group_by(Admin0Name) |>
-    dplyr::slice(1) |>
-    dplyr::ungroup()
+    dplyr::arrange(Admin0Name, year)
 }
 
 #' Load district spatial table (district-year long)
@@ -429,7 +425,7 @@ dist_pop_data <- function(pop_data, output_file = NULL) {
     dplyr::arrange(year, .by_group = TRUE) |>
     tidyr::fill(datasource, .direction = "downup") |>
     dplyr::ungroup() |>
-    dplyr::left_join(growth_rates, by = c("ADM0_NAME" = "Admin0Name"))
+    dplyr::left_join(growth_rates, by = c("ADM0_NAME" = "Admin0Name", "year" = "year"))
 
   # Apply Growth Rate to Fill NAs
   apply_growth <- function(base_data, pop_column) {
@@ -439,41 +435,35 @@ dist_pop_data <- function(pop_data, output_file = NULL) {
       dplyr::group_by(ADM2_GUID) |>
       dplyr::arrange(year, .by_group = TRUE) |>
       dplyr::mutate(
-        anchor_year = {
-          years_with_values <- year[!is.na(.data[[pop_column]])]
-          if (length(years_with_values) > 0) {
-            max(years_with_values)
-          } else {
-            NA_real_
-          }
-        },
-        anchor_value = ifelse(
-          !is.na(anchor_year),
-          .data[[pop_column]][match(anchor_year, year)],
-          NA_real_
-        ),
-        growth_multiplier = (growth_rate / 100) + 1,
-        cumulative_multiplier = cumprod(growth_multiplier),
-        anchor_multiplier = ifelse(
-          !is.na(anchor_year),
-          cumulative_multiplier[match(anchor_year, year)],
-          NA_real_
-        ),
-        fill_multiplier = cumulative_multiplier / anchor_multiplier,
+        anchor_year = tidyr::fill(
+          tibble::tibble(anchor_year = dplyr::if_else(
+            is.na(.data[[pop_column]]), NA_real_, year
+          )),
+          anchor_year,
+          .direction = "down"
+        )$anchor_year,
+
+        anchor_value = tidyr::fill(
+          tibble::tibble(anchor_value = dplyr::if_else(
+            is.na(.data[[pop_column]]), NA_real_, .data[[pop_column]]
+          )),
+          anchor_value,
+          .direction = "down"
+        )$anchor_value,
+
         used_growth = is.na(.data[[pop_column]]) &
-          !is.na(anchor_value) & !is.na(fill_multiplier),
-        "{pop_column}" := ifelse(
-          used_growth, anchor_value * fill_multiplier,
+          !is.na(anchor_year) & !is.na(anchor_value) &
+          !is.na(growth_rate),
+
+        "{pop_column}" := dplyr::if_else(
+          used_growth,
+          round(anchor_value * (((growth_rate / 100) + 1) ^ (year - anchor_year))),
           .data[[pop_column]]
         ),
         "{flag_column}" := used_growth
       ) |>
       dplyr::ungroup() |>
-      dplyr::select(
-        -anchor_year, -anchor_value,
-        -growth_multiplier, -cumulative_multiplier,
-        -anchor_multiplier, -fill_multiplier, -used_growth
-      )
+      dplyr::select(-anchor_year, -anchor_value)
   }
 
   # Output
@@ -496,8 +486,7 @@ dist_pop_data <- function(pop_data, output_file = NULL) {
     ) |>
     dplyr::select(
       -used_growth_Under5Pop, -used_growth_Under15Pop, -used_growth_Total,
-      -active.year.01,
-      -datasource
+      -active.year.01, -datasource
     )
 
   if (!is.null(output_file)) readr::write_rds(result, output_file)
