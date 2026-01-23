@@ -1,15 +1,15 @@
 # Private functions ----
 #' Load Pakistan district population patch
 #'
-#' @param file_location Path to patch file.
+#' @param file_loc Path to patch file.
 #'
 #' @return Tibble with Admin names, year, age columns, datasource.
 #'
 #' @export
 load_pakistan_patch <- function(
-    file_location = "2022_2023 Population Pakistan.csv"
-) {
-  sirfunctions::edav_io("read", file_location) |>
+    file_loc = "GID/PEB/SIR/Data/pop/pop raw/csv files/2022_2023 Population Pakistan.csv",
+    edav = TRUE) {
+  sirfunctions::sirfunctions_io("read", NULL, file_loc, edav = edav) |>
     dplyr::filter(!is.na(Country)) |>
     dplyr::select(-dplyr::any_of("...12")) |>
     dplyr::rename(
@@ -56,14 +56,15 @@ load_pakistan_patch <- function(
 #'
 #' @export
 load_somalia_patch <- function(
-    file_2022 = "AFPPOP_22.csv",
-    file_2023 = "AFPPOP_23.csv",
-    file_2024 = "AFPPOP_24.csv"
+    file_2022 = "GID/PEB/SIR/Data/pop/pop raw/csv files/AFPPOP_22.csv",
+    file_2023 = "GID/PEB/SIR/Data/pop/pop raw/csv files/AFPPOP_23.csv",
+    file_2024 = "GID/PEB/SIR/Data/pop/pop raw/csv files/AFPPOP_24.csv",
+    edav = TRUE
 ) {
 
   # Parse Somalia header rows
   read_somalia_year <- function(somalia_file, year_value) {
-    somalia_raw <- sirfunctions::edav_io("read", somalia_file)
+    somalia_raw <- sirfunctions::sirfunctions_io("read", NULL, somalia_file, edav = edav)
     somalia_raw <- somalia_raw[8:nrow(somalia_raw), ]
     colnames(somalia_raw) <- as.character(unlist(somalia_raw[1, ]))
     somalia_raw <- somalia_raw[-1, ]
@@ -72,7 +73,7 @@ load_somalia_patch <- function(
   }
 
   # Stack yearly extracts and harmonize admin names
-  dplyr::bind_rows(
+  somalia_patches <- dplyr::bind_rows(
     read_somalia_year(file_2022, 2022),
     read_somalia_year(file_2023, 2023),
     read_somalia_year(file_2024, 2024)
@@ -96,31 +97,37 @@ load_somalia_patch <- function(
         TRUE ~ DISTRICT
       ),
       Total = as.numeric(gsub(",", "", Total))
-    ) |>
+    )
+
+  somalia_formatted <- somalia_patches |>
     dplyr::select(
       Admin0Name,
       Admin1Name = PROVINCE,
       Admin2Name = DISTRICT,
       year,
-      Under5Pop  = NA_real_,
-      Under15Pop = NA_real_,
       Total,
       datasource
     ) |>
-    dplyr::mutate(year = as.numeric(year))
+    dplyr::mutate(year = as.numeric(year),
+                  Under5Pop  = NA_real_,
+                  Under15Pop = NA_real_)
+
+  return(somalia_formatted)
+
 }
 
 #' Load Kenya district population patch
 #'
-#' @param file_location Path to Kenya 2018 file.
+#' @param file_loc Path to Kenya 2018 file.
 #'
 #' @return Tibble with Admin names, year, age columns, datasource.
 #'
 #' @export
 load_kenya_patch <- function(
-    file_location = "Kenya_SubCounty_pop_2018.csv"
+    file_loc = "GID/PEB/SIR/Data/pop/pop raw/csv files/Kenya_SubCounty_pop_2018.csv",
+    edav = TRUE
 ) {
-  sirfunctions::edav_io("read", file_location) |>
+  sirfunctions::sirfunctions_io("read", NULL, file_loc, edav = edav) |>
     dplyr::mutate(dplyr::across(dplyr::everything(), toupper)) |>
     dplyr::rename(
       Admin2Name = SubCounty_Name,
@@ -167,29 +174,36 @@ load_kenya_patch <- function(
 #' @return Tibble combined patches.
 #'
 #' @export
-load_all_patches <- function() {
-  dplyr::bind_rows(
-    load_pakistan_patch(),
-    load_somalia_patch(),
-    load_kenya_patch()
-  )
+load_all_patches <- function(pakistan_file_path = "GID/PEB/SIR/Data/pop/pop raw/csv files/2022_2023 Population Pakistan.csv",
+                             somalia_2022_file_path = "GID/PEB/SIR/Data/pop/pop raw/csv files/AFPPOP_22.csv",
+                             somalia_2023_file_path = "GID/PEB/SIR/Data/pop/pop raw/csv files/AFPPOP_23.csv",
+                             somalia_2024_file_path = "GID/PEB/SIR/Data/pop/pop raw/csv files/AFPPOP_24.csv",
+                             kenya_file_path = "GID/PEB/SIR/Data/pop/pop raw/csv files/Kenya_SubCounty_pop_2018.csv",
+                             edav = TRUE) {
+
+  pak_patch <- load_pakistan_patch(pakistan_file_path, edav)
+  som_patch <- load_somalia_patch(somalia_2022_file_path, somalia_2023_file_path, somalia_2024_file_path, edav)
+  ken_patch <- load_kenya_patch(kenya_file_path, edav)
+
+  return(dplyr::bind_rows(pak_patch, som_patch, ken_patch))
 }
 
 #' Load Jamal district under-15 population
 #'
-#' @param file_location Path to Jamal file.
+#' @param file_loc Path to Jamal file.
 #'
 #' @return Tibble with Admin names, year, age columns, datasource.
 #'
 #' @export
 load_jamal_pop <- function(
-    file_location = "POPU15.csv"
+    file_loc = "GID/PEB/SIR/Data/pop/pop raw/csv files/POPU15.csv",
+    edav = TRUE
 ) {
-  sirfunctions::edav_io("read", file_location) |>
+  sirfunctions::sirfunctions_io("read", NULL, file_loc, edav = edav) |>
     dplyr::mutate(
-      Country = toupper(Country),
-      Province = toupper(Province),
-      District = toupper(District)
+      Country = toupper(Admin0),
+      Province = toupper(Admin1),
+      District = toupper(Admin2)
     ) |>
     dplyr::select(
       Admin0Name = Country,
@@ -209,17 +223,16 @@ load_jamal_pop <- function(
 
 #' Load population growth rates
 #'
-#' @param file_location Path to WPP Excel file.
+#' @param file_loc Path to WPP Excel file.
 #'
 #' @return Tibble with Admin0Name, year, growth_rate.
 #' @export
 load_growth_rates <- function(
-    file_location = "WPP2024_GEN_F01_DEMOGRAPHIC_INDICATORS_COMPACT.xlsx"
+    file_loc = "GID/PEB/SIR/Data/pop/pop raw/WPP2024_GEN_F01_DEMOGRAPHIC_INDICATORS_COMPACT.xlsx",
+    edav = TRUE
 ) {
-  wpp_raw <- sirfunctions::edav_io(
-    "read", file_location,
-    sheet = "Estimates"
-  )
+  wpp_raw <- sirfunctions::sirfunctions_io("read", NULL, file_loc, edav = edav,
+                                           sheet = "Estimates")
 
   # Find growth-rate table header row
   header_row <- which(apply(
