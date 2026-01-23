@@ -169,25 +169,6 @@ load_kenya_patch <- function(
     dplyr::select(Admin0Name, Admin1Name, Admin2Name, year, Under5Pop, Under15Pop, Total, datasource)
 }
 
-#' Combine all district patch sources
-#'
-#' @return Tibble combined patches.
-#'
-#' @export
-load_all_patches <- function(pakistan_file_path = "GID/PEB/SIR/Data/pop/pop raw/csv files/2022_2023 Population Pakistan.csv",
-                             somalia_2022_file_path = "GID/PEB/SIR/Data/pop/pop raw/csv files/AFPPOP_22.csv",
-                             somalia_2023_file_path = "GID/PEB/SIR/Data/pop/pop raw/csv files/AFPPOP_23.csv",
-                             somalia_2024_file_path = "GID/PEB/SIR/Data/pop/pop raw/csv files/AFPPOP_24.csv",
-                             kenya_file_path = "GID/PEB/SIR/Data/pop/pop raw/csv files/Kenya_SubCounty_pop_2018.csv",
-                             edav = TRUE) {
-
-  pak_patch <- load_pakistan_patch(pakistan_file_path, edav)
-  som_patch <- load_somalia_patch(somalia_2022_file_path, somalia_2023_file_path, somalia_2024_file_path, edav)
-  ken_patch <- load_kenya_patch(kenya_file_path, edav)
-
-  return(dplyr::bind_rows(pak_patch, som_patch, ken_patch))
-}
-
 #' Load Jamal district under-15 population
 #'
 #' @param file_loc Path to Jamal file.
@@ -221,6 +202,27 @@ load_jamal_pop <- function(
     )
 }
 
+#' Combine all district patch sources
+#'
+#' @return Tibble combined patches.
+#'
+#' @export
+load_all_patches <- function(pakistan_file_path = "GID/PEB/SIR/Data/pop/pop raw/csv files/2022_2023 Population Pakistan.csv",
+                             somalia_2022_file_path = "GID/PEB/SIR/Data/pop/pop raw/csv files/AFPPOP_22.csv",
+                             somalia_2023_file_path = "GID/PEB/SIR/Data/pop/pop raw/csv files/AFPPOP_23.csv",
+                             somalia_2024_file_path = "GID/PEB/SIR/Data/pop/pop raw/csv files/AFPPOP_24.csv",
+                             kenya_file_path = "GID/PEB/SIR/Data/pop/pop raw/csv files/Kenya_SubCounty_pop_2018.csv",
+                             jamal_pop_file_path = "GID/PEB/SIR/Data/pop/pop raw/csv files/POPU15.csv",
+                             edav = TRUE) {
+
+  pak_patch <- load_pakistan_patch(pakistan_file_path, edav)
+  som_patch <- load_somalia_patch(somalia_2022_file_path, somalia_2023_file_path, somalia_2024_file_path, edav)
+  ken_patch <- load_kenya_patch(kenya_file_path, edav)
+  jamal_pop <- load_jamal_pop(jamal_pop_file_path, edav)
+
+  return(dplyr::bind_rows(pak_patch, som_patch, ken_patch, jamal_pop))
+}
+
 #' Load population growth rates
 #'
 #' @param file_loc Path to WPP Excel file.
@@ -231,8 +233,8 @@ load_growth_rates <- function(
     file_loc = "GID/PEB/SIR/Data/pop/pop raw/WPP2024_GEN_F01_DEMOGRAPHIC_INDICATORS_COMPACT.xlsx",
     edav = TRUE
 ) {
-  wpp_raw <- sirfunctions::sirfunctions_io("read", NULL, file_loc, edav = edav,
-                                           sheet = "Estimates")
+  wpp_raw <- sirfunctions::sirfunctions_io("read", NULL, file_loc, edav = edav)
+  wpp_raw <- wpp_raw$Estimates
 
   # Find growth-rate table header row
   header_row <- which(apply(
@@ -283,10 +285,16 @@ load_growth_rates <- function(
 #' @return Tibble district long table.
 #'
 #' @export
-load_district_long <- function() {
-  district_spatial <- sirfunctions::load_clean_dist_sp(type = "long")
-  if (inherits(district_spatial, "sf")) sf::st_geometry(district_spatial) <- NULL
-  district_spatial
+load_district_long <- function(file_loc = "GID/PEB/SIR/Data/spatial/global.dist.rds",
+                               edav = TRUE) {
+  district_spatial <- sirfunctions::load_clean_dist_sp(file_loc, type = "long", edav = edav)
+
+  if (inherits(district_spatial, "sf")) {
+    sf::st_geometry(district_spatial) <- NULL
+  }
+
+  return(district_spatial)
+
 }
 
 #' Join named population rows to district-year shapes
