@@ -6,15 +6,38 @@
 \usage{
 dist_pop_data(
   pop_data,
-  dist_file_loc = "GID/PEB/SIR/Data/spatial/global.dist.rds",
-  growth_rate_file_loc =
+  dist_file_path = "GID/PEB/SIR/Data/spatial/global.dist.rds",
+  growth_rate_file_path =
     "GID/PEB/SIR/Data/pop/pop raw/WPP2024_GEN_F01_DEMOGRAPHIC_INDICATORS_COMPACT.xlsx",
+  pakistan_file_path =
+    "GID/PEB/SIR/Data/pop/pop raw/csv files/2022_2023 Population Pakistan.csv",
+  somalia_2022_file_path = "GID/PEB/SIR/Data/pop/pop raw/csv files/AFPPOP_22.csv",
+  somalia_2023_file_path = "GID/PEB/SIR/Data/pop/pop raw/csv files/AFPPOP_23.csv",
+  somalia_2024_file_path = "GID/PEB/SIR/Data/pop/pop raw/csv files/AFPPOP_24.csv",
+  kenya_file_path = "GID/PEB/SIR/Data/pop/pop raw/csv files/Kenya_SubCounty_pop_2018.csv",
+  jamal_pop_file_path = "GID/PEB/SIR/Data/pop/pop raw/csv files/POPU15.csv",
   output_file = getwd(),
   edav = TRUE
 )
 }
 \arguments{
 \item{pop_data}{Tibble POLIS datasource}
+
+\item{dist_file_path}{\code{str} File path to the global district shapefile.}
+
+\item{growth_rate_file_path}{\code{str} File path to the growth rate Excel file.}
+
+\item{pakistan_file_path}{Path to Pakistan patch file.}
+
+\item{somalia_2022_file_path}{Path to Somalia 2022 file.}
+
+\item{somalia_2023_file_path}{Path to Somalia 2023 file.}
+
+\item{somalia_2024_file_path}{Path to Somalia 2024 file.}
+
+\item{kenya_file_path}{Path to Kenya 2018 file.}
+
+\item{jamal_pop_file_path}{Path to Jamal file.}
 
 \item{output_file}{Optional .rds output path.}
 }

@@ -15,8 +15,21 @@ load_all_patches(
   edav = TRUE
 )
 }
+\arguments{
+\item{pakistan_file_path}{Path to Pakistan patch file.}
+
+\item{somalia_2022_file_path}{Path to Somalia 2022 file.}
+
+\item{somalia_2023_file_path}{Path to Somalia 2023 file.}
+
+\item{somalia_2024_file_path}{Path to Somalia 2024 file.}
+
+\item{kenya_file_path}{Path to Kenya 2018 file.}
+
+\item{jamal_pop_file_path}{Path to Jamal file.}
+}
 \value{
-Tibble combined patches.
+\code{tibble} Dataset with all the patch files.
 }
 \description{
 Combine all district patch sources

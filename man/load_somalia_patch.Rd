@@ -5,18 +5,18 @@
 \title{Load Somalia district population patch}
 \usage{
 load_somalia_patch(
-  file_2022 = "GID/PEB/SIR/Data/pop/pop raw/csv files/AFPPOP_22.csv",
-  file_2023 = "GID/PEB/SIR/Data/pop/pop raw/csv files/AFPPOP_23.csv",
-  file_2024 = "GID/PEB/SIR/Data/pop/pop raw/csv files/AFPPOP_24.csv",
+  somalia_2022_file_path = "GID/PEB/SIR/Data/pop/pop raw/csv files/AFPPOP_22.csv",
+  somalia_2023_file_path = "GID/PEB/SIR/Data/pop/pop raw/csv files/AFPPOP_23.csv",
+  somalia_2024_file_path = "GID/PEB/SIR/Data/pop/pop raw/csv files/AFPPOP_24.csv",
   edav = TRUE
 )
 }
 \arguments{
-\item{file_2022}{Path to 2022 file.}
+\item{somalia_2022_file_path}{Path to Somalia 2022 file.}
 
-\item{file_2023}{Path to 2023 file.}
+\item{somalia_2023_file_path}{Path to Somalia 2023 file.}
 
-\item{file_2024}{Path to 2024 file.}
+\item{somalia_2024_file_path}{Path to Somalia 2024 file.}
 }
 \value{
 Tibble with Admin names, year, age columns, datasource.

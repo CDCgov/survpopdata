@@ -5,12 +5,12 @@
 \title{Load Jamal district under-15 population}
 \usage{
 load_jamal_pop(
-  file_loc = "GID/PEB/SIR/Data/pop/pop raw/csv files/POPU15.csv",
+  jamal_pop_file_path = "GID/PEB/SIR/Data/pop/pop raw/csv files/POPU15.csv",
   edav = TRUE
 )
 }
 \arguments{
-\item{file_loc}{Path to Jamal file.}
+\item{jamal_pop_file_path}{Path to Jamal file.}
 }
 \value{
 Tibble with Admin names, year, age columns, datasource.

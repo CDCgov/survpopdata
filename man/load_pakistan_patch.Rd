@@ -5,12 +5,13 @@
 \title{Load Pakistan district population patch}
 \usage{
 load_pakistan_patch(
-  file_loc = "GID/PEB/SIR/Data/pop/pop raw/csv files/2022_2023 Population Pakistan.csv",
+  pakistan_file_path =
+    "GID/PEB/SIR/Data/pop/pop raw/csv files/2022_2023 Population Pakistan.csv",
   edav = TRUE
 )
 }
 \arguments{
-\item{file_loc}{Path to patch file.}
+\item{pakistan_file_path}{Path to Pakistan patch file.}
 }
 \value{
 Tibble with Admin names, year, age columns, datasource.

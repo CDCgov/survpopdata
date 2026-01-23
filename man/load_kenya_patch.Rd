@@ -5,12 +5,12 @@
 \title{Load Kenya district population patch}
 \usage{
 load_kenya_patch(
-  file_loc = "GID/PEB/SIR/Data/pop/pop raw/csv files/Kenya_SubCounty_pop_2018.csv",
+  kenya_file_path = "GID/PEB/SIR/Data/pop/pop raw/csv files/Kenya_SubCounty_pop_2018.csv",
   edav = TRUE
 )
 }
 \arguments{
-\item{file_loc}{Path to Kenya 2018 file.}
+\item{kenya_file_path}{Path to Kenya 2018 file.}
 }
 \value{
 Tibble with Admin names, year, age columns, datasource.
