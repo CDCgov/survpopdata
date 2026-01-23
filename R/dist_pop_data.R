@@ -180,26 +180,27 @@ load_jamal_pop <- function(
     file_loc = "GID/PEB/SIR/Data/pop/pop raw/csv files/POPU15.csv",
     edav = TRUE
 ) {
-  sirfunctions::sirfunctions_io("read", NULL, file_loc, edav = edav) |>
+  jamal_pop <- sirfunctions::sirfunctions_io("read", NULL, file_loc, edav = edav)
+
+  jamal_pop_formatted <- jamal_pop |>
     dplyr::mutate(
-      Country = toupper(Admin0),
-      Province = toupper(Admin1),
-      District = toupper(Admin2)
+      Admin0Name = toupper(Admin0),
+      Admin1Name = toupper(Admin1),
+      Admin2Name = toupper(Admin2),
+      adm2guid = paste0("{", toupper(PlaceId), "}"),
+      Admin0Name = ifelse(stringr::str_detect(Admin0Name, "IVOIRE"),"COTE D IVOIRE", Admin0Name)
     ) |>
-    dplyr::select(
-      Admin0Name = Country,
-      Admin1Name = Province,
-      Admin2Name = District,
-      year,
-      Under5Pop = dplyr::na_if(NA_real_, NA_real_),
-      Under15Pop = Value,
-      Total = dplyr::na_if(NA_real_, NA_real_)
-    ) |>
-    dplyr::mutate(
-      year = as.numeric(year),
-      Under15Pop = as.numeric(Under15Pop),
-      datasource = "JAMAL POP"
-    )
+    dplyr::select(ends_with("Name"), starts_with("2"), adm2guid) |>
+    tidyr::pivot_longer(cols = starts_with("2"),
+                        names_to = "year",
+                        values_to = "Under15Pop",
+                        values_drop_na = TRUE) |>
+    dplyr::mutate(Under5Pop = NA_real_,
+                  Total = NA_real_,
+                  year = as.integer(year),
+                  datasource = "JAMAL POP")
+
+  return(jamal_pop_formatted)
 }
 
 #' Combine all district patch sources
@@ -278,23 +279,6 @@ load_growth_rates <- function(
       )
     ) |>
     dplyr::arrange(Admin0Name, year)
-}
-
-#' Load district spatial table (district-year long)
-#'
-#' @return Tibble district long table.
-#'
-#' @export
-load_district_long <- function(file_loc = "GID/PEB/SIR/Data/spatial/global.dist.rds",
-                               edav = TRUE) {
-  district_spatial <- sirfunctions::load_clean_dist_sp(file_loc, type = "long", edav = edav)
-
-  if (inherits(district_spatial, "sf")) {
-    sf::st_geometry(district_spatial) <- NULL
-  }
-
-  return(district_spatial)
-
 }
 
 #' Join named population rows to district-year shapes
@@ -401,10 +385,15 @@ deduplicate_population <- function(pop_with_guid) {
 #' \dontrun{
 #' dist_pop_data(pop_data, output_file = "Data/pop/dist_pop_admin2.rds")
 #' }
-dist_pop_data <- function(pop_data, output_file = NULL) {
+dist_pop_data <- function(pop_data,
+                          dist_file_loc = "GID/PEB/SIR/Data/spatial/global.dist.rds",
+                          growth_rate_file_loc = "GID/PEB/SIR/Data/pop/pop raw/WPP2024_GEN_F01_DEMOGRAPHIC_INDICATORS_COMPACT.xlsx",
+                          output_file = getwd(),
+                          edav = TRUE) {
+
   # Input district-year shape table + country-level growth rates
-  district_long <- load_district_long()
-  growth_rates <- load_growth_rates()
+  district_long <- sirfunctions::load_clean_dist_sp(fp = dist_file_loc, type = "long", edav = edav)
+  growth_rates <- load_growth_rates(growth_rate_file_loc, edav = edav)
 
   # Transform POLIS wide and 0-5Y/U0-15Y/UALL to Under5Pop/Under15Pop/Total
   polis_pop <- pop_data |>

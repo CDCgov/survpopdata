@@ -4,7 +4,14 @@
 \alias{dist_pop_data}
 \title{Build district population (Admin2) in wide format}
 \usage{
-dist_pop_data(pop_data, output_file = NULL)
+dist_pop_data(
+  pop_data,
+  dist_file_loc = "GID/PEB/SIR/Data/spatial/global.dist.rds",
+  growth_rate_file_loc =
+    "GID/PEB/SIR/Data/pop/pop raw/WPP2024_GEN_F01_DEMOGRAPHIC_INDICATORS_COMPACT.xlsx",
+  output_file = getwd(),
+  edav = TRUE
+)
 }
 \arguments{
 \item{pop_data}{Tibble POLIS datasource}
