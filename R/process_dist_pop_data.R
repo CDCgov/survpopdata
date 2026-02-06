@@ -406,6 +406,10 @@ process_dist_pop_data <- function(pop_data,
                           output_file = getwd(),
                           edav = TRUE) {
 
+  # Crosswalk and remove forward fills
+  pop_data <- crosswalk_pop_cols(pop_data)
+  pop_data <- remove_forward_fill_polis_pop(pop_data)
+
   # Input district-year shape table + country-level growth rates
   district_long <- sirfunctions::load_clean_dist_sp(fp = dist_file_path, type = "long", edav = edav)
   growth_rates <- load_growth_rates(growth_rate_file_path, edav = edav)
