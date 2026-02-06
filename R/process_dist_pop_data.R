@@ -296,6 +296,7 @@ load_growth_rates <- function(
 #'
 #' @export
 join_pop_to_district_year_shapes <- function(pop_named, district_long) {
+
   pop_named |>
     dplyr::left_join(
       district_long,
@@ -416,6 +417,16 @@ process_dist_pop_data <- function(pop_data,
   district_long <- sirfunctions::load_clean_dist_sp(fp = dist_file_path, type = "long", edav = edav)
   growth_rates <- load_growth_rates(growth_rate_file_path, edav = edav)
 
+  # Remove unnecessary columns from district_long and reduce file size (from 10GB to 115MB)
+  district_long_subset <- district_long |>
+    dplyr::tibble() |>
+    dplyr::select(WHO_REGION, dplyr::ends_with("_NAME"), dplyr::ends_with("_GUID"),
+                  yr.st, yr.end, active.year.01, GUID) |>
+    dplyr::select(-dplyr::ends_with("VIZ_NAME"))
+
+  rm(district_long)
+  gc()
+
   # Transform POLIS wide and 0-5Y/U0-15Y/UALL to Under5Pop/Under15Pop/Total
   polis_pop <- pop_data |>
     dplyr::distinct(ADM0_NAME, ADM1_NAME, ADM2_NAME, year, AgeGroupCode, datasource, .keep_all = TRUE) |>
@@ -430,7 +441,7 @@ process_dist_pop_data <- function(pop_data,
       Total = ALL
     ) |>
     dplyr::select(Admin0Name, Admin1Name, Admin2Name, year, Under5Pop, Under15Pop, Total, datasource) |>
-    join_pop_to_district_year_shapes(district_long)
+    join_pop_to_district_year_shapes(district_long_subset)
 
   # Input Non-POLIS data and removal of forward-filled repeats Values
   non_polis_pop <- load_all_patches(pakistan_file_path,
@@ -440,14 +451,14 @@ process_dist_pop_data <- function(pop_data,
                                     kenya_file_path,
                                     jamal_pop_file_path,
                                     edav) |>
-    join_pop_to_district_year_shapes(district_long) |>
+    join_pop_to_district_year_shapes(district_long_subset) |>
     remove_forward_fill_non_polis()
 
   # Combine POLIS + Non-POLIS data
   combined_pop <- dplyr::bind_rows(polis_pop, non_polis_pop) |>
     deduplicate_population()
 
-  base_data <- district_long |>
+  base_data <- district_long_subset |>
     dplyr::mutate(ADM2_GUID = GUID, year = as.numeric(active.year.01)) |>
     dplyr::distinct(ADM2_GUID, year, .keep_all = TRUE) |>
     dplyr::left_join(
