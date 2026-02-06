@@ -394,7 +394,7 @@ deduplicate_population <- function(pop_with_guid) {
 #' \dontrun{
 #' dist_pop_data(pop_data, output_file = "Data/pop/dist_pop_admin2.rds")
 #' }
-dist_pop_data <- function(pop_data,
+process_dist_pop_data <- function(pop_data,
                           dist_file_path = "GID/PEB/SIR/Data/spatial/global.dist.rds",
                           growth_rate_file_path = "GID/PEB/SIR/Data/pop/pop raw/WPP2024_GEN_F01_DEMOGRAPHIC_INDICATORS_COMPACT.xlsx",
                           pakistan_file_path = "GID/PEB/SIR/Data/pop/pop raw/csv files/2022_2023 Population Pakistan.csv",
