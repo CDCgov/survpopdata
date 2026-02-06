@@ -6,22 +6,25 @@
 \usage{
 process_dist_pop_data(
   pop_data,
+  pop_dir = "GID/PEB/SIR/Data/pop",
   dist_file_path = "GID/PEB/SIR/Data/spatial/global.dist.rds",
-  growth_rate_file_path =
-    "GID/PEB/SIR/Data/pop/pop raw/WPP2024_GEN_F01_DEMOGRAPHIC_INDICATORS_COMPACT.xlsx",
-  pakistan_file_path =
-    "GID/PEB/SIR/Data/pop/pop raw/csv files/2022_2023 Population Pakistan.csv",
-  somalia_2022_file_path = "GID/PEB/SIR/Data/pop/pop raw/csv files/AFPPOP_22.csv",
-  somalia_2023_file_path = "GID/PEB/SIR/Data/pop/pop raw/csv files/AFPPOP_23.csv",
-  somalia_2024_file_path = "GID/PEB/SIR/Data/pop/pop raw/csv files/AFPPOP_24.csv",
-  kenya_file_path = "GID/PEB/SIR/Data/pop/pop raw/csv files/Kenya_SubCounty_pop_2018.csv",
-  jamal_pop_file_path = "GID/PEB/SIR/Data/pop/pop raw/csv files/POPU15.csv",
-  output_file = getwd(),
+  growth_rate_file_path = file.path(pop_dir,
+    "pop raw/WPP2024_GEN_F01_DEMOGRAPHIC_INDICATORS_COMPACT.xlsx"),
+  pakistan_file_path = file.path(pop_dir,
+    "pop raw/csv files/2022_2023 Population Pakistan.csv"),
+  somalia_2022_file_path = file.path(pop_dir, "pop raw/csv files/AFPPOP_22.csv"),
+  somalia_2023_file_path = file.path(pop_dir, "pop raw/csv files/AFPPOP_23.csv"),
+  somalia_2024_file_path = file.path(pop_dir, "pop raw/csv files/AFPPOP_24.csv"),
+  kenya_file_path = file.path(pop_dir, "pop raw/csv files/Kenya_SubCounty_pop_2018.csv"),
+  jamal_pop_file_path = file.path(pop_dir, "pop raw/csv files/POPU15.csv"),
+  output_file = file.path(pop_dir, "processed_pop_file"),
   edav = TRUE
 )
 }
 \arguments{
-\item{pop_data}{Tibble POLIS datasource}
+\item{pop_data}{\code{tibble} District population dataset pulled from the POLIS API.}
+
+\item{pop_dir}{\code{str} Default directory to the population folder.}
 
 \item{dist_file_path}{\code{str} File path to the global district shapefile.}
 

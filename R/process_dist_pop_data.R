@@ -381,7 +381,8 @@ deduplicate_population <- function(pop_with_guid) {
 #' Combines POLIS + patches + Jamal; joins to district-year shapes; deduplicates;
 #' fills datasource across gaps within GUID; fills missing values using growth rates.
 #'
-#' @param pop_data Tibble POLIS datasource
+#' @param pop_data `tibble` District population dataset pulled from the POLIS API.
+#' @param pop_dir `str` Default directory to the population folder.
 #' @param dist_file_path `str` File path to the global district shapefile.
 #' @param growth_rate_file_path `str` File path to the growth rate Excel file.
 #' @inheritParams load_all_patches
@@ -395,16 +396,17 @@ deduplicate_population <- function(pop_with_guid) {
 #' dist_pop_data(pop_data, output_file = "Data/pop/dist_pop_admin2.rds")
 #' }
 process_dist_pop_data <- function(pop_data,
-                          dist_file_path = "GID/PEB/SIR/Data/spatial/global.dist.rds",
-                          growth_rate_file_path = "GID/PEB/SIR/Data/pop/pop raw/WPP2024_GEN_F01_DEMOGRAPHIC_INDICATORS_COMPACT.xlsx",
-                          pakistan_file_path = "GID/PEB/SIR/Data/pop/pop raw/csv files/2022_2023 Population Pakistan.csv",
-                          somalia_2022_file_path = "GID/PEB/SIR/Data/pop/pop raw/csv files/AFPPOP_22.csv",
-                          somalia_2023_file_path = "GID/PEB/SIR/Data/pop/pop raw/csv files/AFPPOP_23.csv",
-                          somalia_2024_file_path = "GID/PEB/SIR/Data/pop/pop raw/csv files/AFPPOP_24.csv",
-                          kenya_file_path = "GID/PEB/SIR/Data/pop/pop raw/csv files/Kenya_SubCounty_pop_2018.csv",
-                          jamal_pop_file_path = "GID/PEB/SIR/Data/pop/pop raw/csv files/POPU15.csv",
-                          output_file = getwd(),
-                          edav = TRUE) {
+                                  pop_dir = "GID/PEB/SIR/Data/pop",
+                                  dist_file_path = "GID/PEB/SIR/Data/spatial/global.dist.rds",
+                                  growth_rate_file_path = file.path(pop_dir, "pop raw/WPP2024_GEN_F01_DEMOGRAPHIC_INDICATORS_COMPACT.xlsx"),
+                                  pakistan_file_path = file.path(pop_dir, "pop raw/csv files/2022_2023 Population Pakistan.csv"),
+                                  somalia_2022_file_path = file.path(pop_dir, "pop raw/csv files/AFPPOP_22.csv"),
+                                  somalia_2023_file_path = file.path(pop_dir, "pop raw/csv files/AFPPOP_23.csv"),
+                                  somalia_2024_file_path = file.path(pop_dir, "pop raw/csv files/AFPPOP_24.csv"),
+                                  kenya_file_path = file.path(pop_dir, "pop raw/csv files/Kenya_SubCounty_pop_2018.csv"),
+                                  jamal_pop_file_path = file.path(pop_dir, "pop raw/csv files/POPU15.csv"),
+                                  output_file = file.path(pop_dir, "processed_pop_file"),
+                                  edav = TRUE) {
 
   # Crosswalk and remove forward fills
   pop_data <- crosswalk_pop_cols(pop_data)
