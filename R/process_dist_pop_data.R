@@ -375,6 +375,53 @@ deduplicate_population <- function(pop_with_guid) {
     dplyr::select(-source_rank, -has_any_value)
 }
 
+#' Applies the growth rate to each population columns
+#'
+#' @param base_data `tibble` Combined population data with the growth rate columns.
+#' @param pop_column `str` Name of the population column to apply the growth rate to.
+#'
+#' @returns `tibble` Population data with population filled based on growth rates
+#' @keywords internal
+#'
+apply_growth_rate <- function(base_data, pop_column) {
+  flag_column <- paste0("used_growth_", pop_column)
+
+  # Create anchor years
+  base_data_formatted <- base_data |>
+    dplyr::group_by(ADM2_GUID) |>
+    dplyr::arrange(year, .by_group = TRUE) |>
+    dplyr::mutate(
+      anchor_year = tidyr::fill(
+        tibble::tibble(anchor_year = dplyr::if_else(
+          is.na(!!dplyr::sym(pop_column)), NA_real_, year
+        )),
+        anchor_year,
+        .direction = "down"
+      )$anchor_year,
+
+      anchor_value = tidyr::fill(
+        tibble::tibble(anchor_value = dplyr::if_else(
+          is.na(!!dplyr::sym(pop_column)), NA_real_, !!dplyr::sym(pop_column)
+        )),
+        anchor_value,
+        .direction = "down"
+      )$anchor_value,
+
+      used_growth = is.na(!!dplyr::sym(pop_column)) &
+        !is.na(anchor_year) & !is.na(anchor_value) &
+        !is.na(growth_rate),
+
+      "{pop_column}" := dplyr::if_else(
+        used_growth,
+        round(anchor_value * (((growth_rate / 100) + 1) ^ (year - anchor_year))),
+        !!dplyr::sym(pop_column)
+      ),
+      "{flag_column}" := used_growth
+    ) |>
+    dplyr::ungroup() |>
+    dplyr::select(-anchor_year, -anchor_value)
+}
+
 # Public function ----
 
 #' Build district population (Admin2) in wide format
@@ -503,54 +550,27 @@ process_dist_pop_data <- function(pop_data,
     ) |>
     dplyr::group_by(ADM2_GUID) |>
     dplyr::arrange(year, .by_group = TRUE) |>
-    tidyr::fill(datasource, .direction = "downup") |>
+    tidyr::fill(datasource, .direction = "down") |>
     dplyr::ungroup() |>
     dplyr::left_join(growth_rates, by = c("ADM0_NAME" = "Admin0Name", "year" = "year"))
 
-  # Apply Growth Rate to Fill NAs
-  apply_growth <- function(base_data, pop_column) {
-    flag_column <- paste0("used_growth_", pop_column)
+  # Note that there are mismatches in names
 
-    base_data |>
-      dplyr::group_by(ADM2_GUID) |>
-      dplyr::arrange(year, .by_group = TRUE) |>
-      dplyr::mutate(
-        anchor_year = tidyr::fill(
-          tibble::tibble(anchor_year = dplyr::if_else(
-            is.na(.data[[pop_column]]), NA_real_, year
-          )),
-          anchor_year,
-          .direction = "down"
-        )$anchor_year,
-
-        anchor_value = tidyr::fill(
-          tibble::tibble(anchor_value = dplyr::if_else(
-            is.na(.data[[pop_column]]), NA_real_, .data[[pop_column]]
-          )),
-          anchor_value,
-          .direction = "down"
-        )$anchor_value,
-
-        used_growth = is.na(.data[[pop_column]]) &
-          !is.na(anchor_year) & !is.na(anchor_value) &
-          !is.na(growth_rate),
-
-        "{pop_column}" := dplyr::if_else(
-          used_growth,
-          round(anchor_value * (((growth_rate / 100) + 1) ^ (year - anchor_year))),
-          .data[[pop_column]]
-        ),
-        "{flag_column}" := used_growth
-      ) |>
-      dplyr::ungroup() |>
-      dplyr::select(-anchor_year, -anchor_value)
-  }
+  # Some years the growth rates are not available. These need to be filled using "downup."
+  # We first arrange from oldest to newest year, then fill.
+  # For example, if no data in 2024, 2025 but there is data in 2023, then use 2023.
+  # In case of gaps, such as 2023, 2024 (blank), 2025 (blank), 2026, then fill using 2023.
+  base_data <- base_data |>
+    dplyr::group_by(ADM0_NAME) |>
+    dplyr::arrange(year, .by_group = TRUE) |>
+    tidyr::fill(growth_rate, .direction = "downup") |>
+    dplyr::ungroup()
 
   # Output
   result <- base_data |>
-    apply_growth("Under5Pop") |>
-    apply_growth("Under15Pop") |>
-    apply_growth("Total") |>
+    apply_growth_rate("Under5Pop") |>
+    apply_growth_rate("Under15Pop") |>
+    apply_growth_rate("Total") |>
     dplyr::mutate(
       Used_Growth_Rate = ifelse(
         used_growth_Under5Pop | used_growth_Under15Pop | used_growth_Total,
