@@ -386,6 +386,24 @@ deduplicate_population <- function(pop_with_guid) {
 apply_growth_rate <- function(base_data, pop_column) {
   flag_column <- paste0("used_growth_", pop_column)
 
+  # Create anchor year vars
+  base_data_formatted_1 <- base_data |>
+    dplyr::group_by(ADM2_GUID) |>
+    dplyr::arrange(year, .by_group = TRUE) |>
+    dplyr::mutate(anchor_year = year,
+                  anchor_value = !!dplyr::sym(pop_column)) |>
+    dplyr::mutate(dplyr::across(dplyr::any_of(c("anchor_year", "anchor_value")),
+                                \(x) {
+                                  ifelse(!is.na(!!dplyr::sym(pop_column)), x, NA)
+                                })) |>
+    tidyr::fill(anchor_year, anchor_value, .direction = "downup") |>
+    dplyr::ungroup() |>
+    dplyr::mutate(
+      used_growth = is.na(!!dplyr::sym(pop_column)) & !is.na(anchor_year) &
+                    !is.na(anchor_value) & !is.na(growth_rate),
+      pop_using_growth_rate = round(anchor_value * (((growth_rate / 100) + 1) ^ (year - anchor_year)))
+    )
+
   # Create anchor years
   base_data_formatted <- base_data |>
     dplyr::group_by(ADM2_GUID) |>
