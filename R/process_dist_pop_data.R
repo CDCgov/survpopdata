@@ -458,8 +458,43 @@ process_dist_pop_data <- function(pop_data,
   combined_pop <- dplyr::bind_rows(polis_pop, non_polis_pop) |>
     deduplicate_population()
 
+  # Perform check to make sure ADM2GUIDs are equal to stated admin2guids of non-polis sources
+  adm2guid_discrepancies <- combined_pop |>
+    dplyr::mutate(
+      diff_adm2guid = dplyr::case_when(
+        ADM2_GUID != adm2guid ~ TRUE,
+        ADM2_GUID == adm2guid ~ FALSE,
+        .default = NA
+      )
+    ) |>
+    dplyr::filter(diff_adm2guid) |>
+    dplyr::left_join(district_long_subset |> dplyr::select(year = active.year.01,
+                                                           adm2guid = GUID,
+                                                           adm2name_from_non_api_src = ADM2_NAME))
+
+  # Count number of conflicting names
+  adm2guid_discrepancies_conflicts <- adm2guid_discrepancies |>
+    dplyr::filter(!is.na(adm2name_from_non_api_src)) |>
+    dplyr::select(year, Admin2Name, GUID, adm2name_from_non_api_src)
+
+  if (nrow(adm2guid_discrepancies_conflicts) > 0) {
+    cli::cli_alert_info(paste0("There are discrepancies in the GUIDs reported for districts in some years. ",
+                               "Please check the error_log folder."))
+    sirfunctions::sirfunctions_io("write", NULL,
+                                  file_loc = file.path(pop_dir, "error_log",
+                                                       paste0("adm2_discrepancies_",
+                                                              Sys.Date(), ".parquet")),
+                                  edav = edav)
+  }
+
+  rm(adm2guid_discrepancies, adm2guid_discrepancies_conflicts)
+
+  # Compare different adm2guids and determine which GUID it represents
+  # Count number of GUIDs in non-API sources that belong in the district shapefile
+
   base_data <- district_long_subset |>
-    dplyr::mutate(ADM2_GUID = GUID, year = as.numeric(active.year.01)) |>
+    dplyr::mutate(active.year.01 = as.numeric(active.year.01)) |>
+    dplyr::rename(ADM2_GUID = "GUID", year = "active.year.01") |>
     dplyr::distinct(ADM2_GUID, year, .keep_all = TRUE) |>
     dplyr::left_join(
       combined_pop |>
