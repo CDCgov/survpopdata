@@ -251,17 +251,8 @@ load_growth_rates <- function(
   wpp_raw <- sirfunctions::sirfunctions_io("read", NULL, file_loc, edav = edav)
   wpp_raw <- wpp_raw$Estimates
 
-  # Find growth-rate table header row
-  header_row <- which(apply(
-    wpp_raw, 1,
-    \(row) any(grepl("Population Growth Rate", row))
-  ))[1]
-
-  wpp_body <- wpp_raw[(header_row + 1):nrow(wpp_raw), ]
-  colnames(wpp_body) <- wpp_raw[header_row, ]
-
   # Select and standardize output
-  wpp_body |>
+  wpp_raw |>
     dplyr::select(
       Admin0Name = `Region, subregion, country or area *`,
       year = Year,
@@ -285,13 +276,7 @@ load_growth_rates <- function(
         TRUE ~ Admin0Name
       ),
       year = as.numeric(year),
-      growth_rate = as.numeric(growth_rate),
-      growth_rate = dplyr::if_else(
-        !is.na(growth_rate) & growth_rate < 0,
-        1 / (-1 * growth_rate),
-        growth_rate
-      )
-    ) |>
+      growth_rate = as.numeric(growth_rate) / 100) |> # convert to decimal
     dplyr::arrange(Admin0Name, year)
 }
 
