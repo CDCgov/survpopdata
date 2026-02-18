@@ -11,11 +11,18 @@ load_growth_rates(
 )
 }
 \arguments{
-\item{file_loc}{Path to WPP Excel file.}
+\item{file_loc}{\code{str} Path to WPP Excel file.}
 }
 \value{
-Tibble with Admin0Name, year, growth_rate.
+\code{tibble} Growth rates for each country by year.
 }
 \description{
 Load population growth rates
+}
+\details{
+Loads and formats the population growth rate file for use in R.
+
+The Excel file uses the "Estimates" tab. The first few rows (16 rows or so) are deleted for ease of loading into
+R. The source of this dataset is in the \href{https://population.un.org/wpp/downloads?folder=Standard\%20Projections&group=Most\%20used}{World Population Prospects}
+website, using the "Compact" file.
 }

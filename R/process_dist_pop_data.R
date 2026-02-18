@@ -232,9 +232,17 @@ load_all_patches <- function(pakistan_file_path = "GID/PEB/SIR/Data/pop/pop raw/
 
 #' Load population growth rates
 #'
-#' @param file_loc Path to WPP Excel file.
+#' @details
+#' Loads and formats the population growth rate file for use in R.
 #'
-#' @return Tibble with Admin0Name, year, growth_rate.
+#'
+#' @param file_loc `str` Path to WPP Excel file.
+#' @details
+#' The Excel file uses the "Estimates" tab. The first few rows (16 rows or so) are deleted for ease of loading into
+#' R. The source of this dataset is in the [World Population Prospects](https://population.un.org/wpp/downloads?folder=Standard%20Projections&group=Most%20used)
+#' website, using the "Compact" file.
+#'
+#' @return `tibble` Growth rates for each country by year.
 #' @export
 load_growth_rates <- function(
     file_loc = "GID/PEB/SIR/Data/pop/pop raw/WPP2024_GEN_F01_DEMOGRAPHIC_INDICATORS_COMPACT.xlsx",
