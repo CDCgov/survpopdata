@@ -411,10 +411,14 @@ apply_growth_rate <- function(base_data, pop_column) {
 #' @param base_data Tibble of province-level population data (may have NA)
 #'
 #' @return Tibble with remaining NAs filled and aggregation flags
-#' @export
+#' @keywords internal
+#'
 aggregate_districts_to_province <- function(base_data) {
+
   # Retrieve district-level population and aggregate (sum) all districts to province-year level
-  province_aggregates <- process_dist_pop_data() |>
+  district_data <- process_dist_pop_data()
+
+  province_aggregates <- district_data |>
     dplyr::group_by(ADM0_NAME, ADM1_NAME, year) |>
     dplyr::summarise(
       Total_from_districts = sum(Total, na.rm = TRUE),
@@ -526,8 +530,8 @@ process_prov_pop_data <- function(pop_data,
   adm1guid_discrepancies <- combined_pop |>
     dplyr::mutate(
       diff_adm1guid = dplyr::case_when(
-        ADM1_GUID != adm2guid ~ TRUE,
-        ADM1_GUID == adm2guid ~ FALSE,
+        ADM1_GUID != adm1guid ~ TRUE,
+        ADM1_GUID == adm1guid ~ FALSE,
         .default = NA
       )
     ) |>
