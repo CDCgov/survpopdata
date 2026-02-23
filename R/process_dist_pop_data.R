@@ -358,17 +358,16 @@ deduplicate_population <- function(pop_with_guid) {
   pop_with_guid |>
     dplyr::mutate(
       source_rank = dplyr::case_when(
-        datasource == "POLIS" ~ 1L,
+        datasource == "POLIS API" ~ 3L,
         grepl("^PATCH_", datasource) ~ 2L,
         datasource == "KENYA 2018 PATCH" ~ 2L,
-        datasource == "JAMAL POP" ~ 3L,
+        datasource == "JAMAL POP" ~ 1L,
         TRUE ~ 99L
       ),
       has_any_value = !(is.na(Total) & is.na(Under15Pop) & is.na(Under5Pop))
     ) |>
     dplyr::group_by(ADM2_GUID, year) |>
-    dplyr::arrange(!has_any_value, source_rank, .by_group = TRUE) |>
-    dplyr::slice(1) |>
+    dplyr::slice_max(source_rank) |>
     dplyr::ungroup() |>
     dplyr::select(-source_rank, -has_any_value)
 }
@@ -482,6 +481,8 @@ process_dist_pop_data <- function(pop_data,
 
   # Transform POLIS wide and 0-5Y/U0-15Y/UALL to Under5Pop/Under15Pop/Total
   polis_pop <- pop_data |>
+    dplyr::arrange(year) |>
+    dplyr::select(-CREATEDDATE, - UPDATEDDATE) |>
     dplyr::distinct(ADM0_NAME, ADM1_NAME, ADM2_NAME, year, AgeGroupCode, datasource, .keep_all = TRUE) |>
     tidyr::pivot_wider(names_from = AgeGroupCode, values_from = Value) |>
     dplyr::mutate(
@@ -505,7 +506,8 @@ process_dist_pop_data <- function(pop_data,
                                     jamal_pop_file_path,
                                     edav) |>
     join_pop_to_district_year_shapes(district_long_subset) |>
-    remove_forward_fill_non_polis()
+    remove_forward_fill_non_polis() |>
+    dplyr::select(-adm2guid)
 
   # Combine POLIS + Non-POLIS data
   combined_pop <- dplyr::bind_rows(polis_pop, non_polis_pop) |>
