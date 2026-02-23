@@ -381,7 +381,6 @@ deduplicate_population <- function(pop_with_guid) {
 #' @keywords internal
 #'
 apply_growth_rate <- function(base_data, pop_column) {
-  flag_column <- paste0("used_growth_", pop_column)
 
   # Create anchor year vars
   base_data_formatted <- base_data |>
@@ -396,6 +395,10 @@ apply_growth_rate <- function(base_data, pop_column) {
     tidyr::fill(anchor_year, anchor_value, .direction = "downup") |>
     dplyr::ungroup() |>
     dplyr::mutate(growth_factor_applied = dplyr::if_else(year != anchor_year, TRUE, FALSE))
+
+  base_data_formatted <- base_data_formatted |>
+    dplyr::rename_with(recode,
+                       growth_factor_applied = paste0("used_growth_", pop_column))
 
   # Apply cumulative product closed-form solution
   # Code and closed-form solution was written by AI and reviewed.
@@ -422,8 +425,6 @@ apply_growth_rate <- function(base_data, pop_column) {
     dplyr::mutate(dplyr::across(dplyr::any_of(pop_column), \(x) dplyr::if_else(is.na(x), computed_total, x))) |>
     dplyr::select(-gp, -cp_next, -a_idx, -a_val, -denom, -ratio, -computed_total) |>
     dplyr::ungroup()
-
-
 
 }
 
@@ -506,8 +507,7 @@ process_dist_pop_data <- function(pop_data,
                                     jamal_pop_file_path,
                                     edav) |>
     join_pop_to_district_year_shapes(district_long_subset) |>
-    remove_forward_fill_non_polis() |>
-    dplyr::select(-adm2guid)
+    remove_forward_fill_non_polis()
 
   # Combine POLIS + Non-POLIS data
   combined_pop <- dplyr::bind_rows(polis_pop, non_polis_pop) |>
