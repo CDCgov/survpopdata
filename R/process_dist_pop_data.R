@@ -406,21 +406,24 @@ apply_growth_rate <- function(base_data, pop_column) {
     dplyr::group_by(ADM2_GUID) |>
     dplyr::arrange(year, .by_group = TRUE) |>
     dplyr::mutate(
-      gp = 1 + growth_rate,                     # growth factors
-      cp = cumprod(gp),                         # cp[j] = ∏_{k=1..j} (1 + g_k)
-      a_idx = match(first(anchor_year), year),  # index of anchor year in this group
-      a_val = first(anchor_value),              # anchor value (same for all rows in group)
-      base  = dplyr::lag(cp, default = 1)[a_idx], # safe: cp[a_idx-1] with cp[0] := 1
-      computed_total = dplyr::case_when(
-        row_number() == a_idx ~ a_val,
-        row_number() < a_idx ~ a_val * (base / dplyr::lag(cp, default = 1)),
-        row_number() >  a_idx ~ a_val * (base / dplyr::lead(cp, default = 1))),
+      # Destination-year labeling: gp_next = 1 + g_{t+1}
+      gp        = 1 + growth_rate,
+      cp_next   = cumprod(dplyr::lead(gp, default = 1)), # ∏ of next-year growth factors
+      a_idx     = match(first(anchor_year), year),
+      a_val     = first(anchor_value),
+
+      # Denominator = cp_next[a_idx - 1] (use lag to get "prev" with cp[0] := 1)
+      denom     = dplyr::lag(cp_next, default = 1)[a_idx],
+
+      # Unified closed-form for ANY row i:
+      # Total[i] = anchor_val * (cp_next[i-1] / cp_next[a_idx-1])
+      ratio     = dplyr::lag(cp_next, default = 1) / denom,
+      computed_total  = a_val * ratio,
     ) %>%
     dplyr::mutate(dplyr::across(dplyr::any_of(pop_column), \(x) dplyr::if_else(is.na(x), computed_total, x))) |>
-    # Optionally ensure the anchor row equals the anchor value even if it wasn't NA:
-    # mutate(Total = replace(Total, a_idx, a_val)) %>%
-    select(-gp, -cp, -a_idx, -a_val, -base, -computed_total) %>%
-    ungroup()
+    dplyr::select(-gp, -cp_next, -a_idx, -a_val, -denom, -ratio, -computed_total) |>
+    dplyr::ungroup()
+
 
 
 }
