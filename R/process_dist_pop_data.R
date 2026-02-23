@@ -248,11 +248,11 @@ load_growth_rates <- function(
     file_loc = "GID/PEB/SIR/Data/pop/pop raw/WPP2024_GEN_F01_DEMOGRAPHIC_INDICATORS_COMPACT.xlsx",
     edav = TRUE
 ) {
-  wpp_raw <- sirfunctions::sirfunctions_io("read", NULL, file_loc, edav = edav)
+  wpp_raw <- sirfunctions::sirfunctions_io("read", NULL, file_loc, edav = edav, sheet = 1)
   wpp_raw <- wpp_raw$Estimates
 
   # Select and standardize output
-  wpp_raw |>
+  growth_rates <- wpp_raw |>
     dplyr::select(
       Admin0Name = `Region, subregion, country or area *`,
       year = Year,
@@ -278,6 +278,11 @@ load_growth_rates <- function(
       year = as.numeric(year),
       growth_rate = as.numeric(growth_rate) / 100) |> # convert to decimal
     dplyr::arrange(Admin0Name, year)
+
+  cli::cli_alert_info("Note: Growth rates are in decimal form, not percentages!")
+
+  return(growth_rates)
+
 }
 
 #' Join named population rows to district-year shapes
