@@ -385,7 +385,7 @@ apply_growth_rate <- function(base_data, pop_column) {
   flag_column <- paste0("used_growth_", pop_column)
 
   # Create anchor year vars
-  base_data_formatted_1 <- base_data |>
+  base_data_formatted <- base_data |>
     dplyr::group_by(ADM2_GUID) |>
     dplyr::arrange(year, .by_group = TRUE) |>
     dplyr::mutate(anchor_year = year,
@@ -396,46 +396,33 @@ apply_growth_rate <- function(base_data, pop_column) {
                                 })) |>
     tidyr::fill(anchor_year, anchor_value, .direction = "downup") |>
     dplyr::ungroup() |>
-    dplyr::mutate(
-      used_growth = is.na(!!dplyr::sym(pop_column)) & !is.na(anchor_year) &
-                    !is.na(anchor_value) & !is.na(growth_rate),
-      pop_using_growth_rate = round(anchor_value * (((growth_rate / 100) + 1) ^ (year - anchor_year)))
-    )
+    dplyr::mutate(growth_factor_applied = dplyr::if_else(year != anchor_year, TRUE, FALSE))
 
-  # Create anchor years
-  base_data_formatted <- base_data |>
+  # Apply cumulative product closed-form solution
+  # Code and closed-form solution was written by AI and reviewed.
+  # Microsoft 365 Copilot
+  # Version number: bizchat.20260210.47.1
+  base_data_growth_rate_filled <- base_data_formatted |>
     dplyr::group_by(ADM2_GUID) |>
     dplyr::arrange(year, .by_group = TRUE) |>
     dplyr::mutate(
-      anchor_year = tidyr::fill(
-        tibble::tibble(anchor_year = dplyr::if_else(
-          is.na(!!dplyr::sym(pop_column)), NA_real_, year
-        )),
-        anchor_year,
-        .direction = "down"
-      )$anchor_year,
+      gp = 1 + growth_rate,                     # growth factors
+      cp = cumprod(gp),                         # cp[j] = ∏_{k=1..j} (1 + g_k)
+      a_idx = match(first(anchor_year), year),  # index of anchor year in this group
+      a_val = first(anchor_value),              # anchor value (same for all rows in group)
+      base  = dplyr::lag(cp, default = 1)[a_idx], # safe: cp[a_idx-1] with cp[0] := 1
+      computed_total = dplyr::case_when(
+        row_number() == a_idx ~ a_val,
+        row_number() < a_idx ~ a_val * (base / dplyr::lag(cp, default = 1)),
+        row_number() >  a_idx ~ a_val * (base / dplyr::lead(cp, default = 1))),
+    ) %>%
+    dplyr::mutate(dplyr::across(dplyr::any_of(pop_column), \(x) dplyr::if_else(is.na(x), computed_total, x))) |>
+    # Optionally ensure the anchor row equals the anchor value even if it wasn't NA:
+    # mutate(Total = replace(Total, a_idx, a_val)) %>%
+    select(-gp, -cp, -a_idx, -a_val, -base, -computed_total) %>%
+    ungroup()
 
-      anchor_value = tidyr::fill(
-        tibble::tibble(anchor_value = dplyr::if_else(
-          is.na(!!dplyr::sym(pop_column)), NA_real_, !!dplyr::sym(pop_column)
-        )),
-        anchor_value,
-        .direction = "down"
-      )$anchor_value,
 
-      used_growth = is.na(!!dplyr::sym(pop_column)) &
-        !is.na(anchor_year) & !is.na(anchor_value) &
-        !is.na(growth_rate),
-
-      "{pop_column}" := dplyr::if_else(
-        used_growth,
-        round(anchor_value * (((growth_rate / 100) + 1) ^ (year - anchor_year))),
-        !!dplyr::sym(pop_column)
-      ),
-      "{flag_column}" := used_growth
-    ) |>
-    dplyr::ungroup() |>
-    dplyr::select(-anchor_year, -anchor_value)
 }
 
 # Public function ----
@@ -584,9 +571,9 @@ process_dist_pop_data <- function(pop_data,
 
   # Output
   result <- base_data |>
-    apply_growth_rate("Under5Pop") |>
-    apply_growth_rate("Under15Pop") |>
     apply_growth_rate("Total") |>
+    apply_growth_rate("Under15Pop") |>
+    apply_growth_rate("Under5Pop") |>
     dplyr::mutate(
       Used_Growth_Rate = ifelse(
         used_growth_Under5Pop | used_growth_Under15Pop | used_growth_Total,
