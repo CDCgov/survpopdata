@@ -400,31 +400,38 @@ apply_growth_rate <- function(base_data, pop_column) {
     dplyr::rename_with(recode,
                        growth_factor_applied = paste0("used_growth_", pop_column))
 
-  # Apply cumulative product closed-form solution
-  # Code and closed-form solution was written by AI and reviewed.
-  # Microsoft 365 Copilot
-  # Version number: bizchat.20260210.47.1
-  base_data_growth_rate_filled <- base_data_formatted |>
-    dplyr::group_by(ADM2_GUID) |>
-    dplyr::arrange(year, .by_group = TRUE) |>
-    dplyr::mutate(
-      # Destination-year labeling: gp_next = 1 + g_{t+1}
-      gp        = 1 + growth_rate,
-      cp_next   = cumprod(dplyr::lead(gp, default = 1)), # ∏ of next-year growth factors
-      a_idx     = match(first(anchor_year), year),
-      a_val     = first(anchor_value),
-
-      # Denominator = cp_next[a_idx - 1] (use lag to get "prev" with cp[0] := 1)
-      denom     = dplyr::lag(cp_next, default = 1)[a_idx],
-
-      # Unified closed-form for ANY row i:
-      # Total[i] = anchor_val * (cp_next[i-1] / cp_next[a_idx-1])
-      ratio     = dplyr::lag(cp_next, default = 1) / denom,
-      computed_total  = a_val * ratio,
-    ) %>%
-    dplyr::mutate(dplyr::across(dplyr::any_of(pop_column), \(x) dplyr::if_else(is.na(x), computed_total, x))) |>
-    dplyr::select(-gp, -cp_next, -a_idx, -a_val, -denom, -ratio, -computed_total) |>
+  # forward fill
+  forward_fill <- base_data_formatted |>
+    dplyr::filter(year > anchor_year) |>
+    dplyr::group_by(ADM2_GUID, anchor_year) |>
+    dplyr::mutate(cp = cumprod((1+growth_rate)),
+           computed_value = cp * anchor_value) |>
     dplyr::ungroup()
+
+  # backfill
+  backward_fill <- base_data_formatted |>
+    dplyr::filter(year < anchor_year) |>
+    dplyr::arrange(dplyr::desc(year)) |>
+    dplyr::group_by(ADM2_GUID, anchor_year) |>
+    dplyr::mutate(cp = cumprod((1+growth_rate)),
+           computed_value = anchor_value / cp,
+           growth_rate) |>
+    dplyr::ungroup()
+
+  # no fill
+  no_fill <- base_data_formatted |>
+    filter((year == anchor_year | is.na(anchor_year)))
+
+  # combine
+  base_data_growth_rate_filled <- dplyr::bind_rows(forward_fill, backward_fill, no_fill)
+
+  # replace
+  base_data_growth_rate_filled <- base_data_growth_rate_filled |>
+    dplyr::mutate(dplyr::across(dplyr::any_of(pop_column), \(x) dplyr::if_else(is.na(x), computed_value, x))) |>
+    dplyr::select(-cp, -computed_value, -anchor_year, -anchor_value) |>
+    dplyr::arrange(ADM0_NAME, year)
+
+  return(base_data_growth_rate_filled)
 
 }
 
@@ -556,9 +563,19 @@ process_dist_pop_data <- function(pop_data,
   duplicated_guid_year <- result |>
     dplyr::group_by(ADM2_GUID, year) |>
     dplyr::summarise(n = dplyr::n()) |>
-    dplyr::filter(n > 1)
+    dplyr::filter(n > 1) |>
+    dplyr::ungroup()
 
-  duplicated_guid_year$year |> table()
+  if (nrow(duplicated_guid_year) > 0) {
+    cli::cli_alert_danger("There are duplicate GUID year combinations!")
+    cli::cli_li(duplicated_guid_year$ADM2_GUID)
+  } else {
+    cli::cli_alert_success("No duplicate GUID year combinations")
+  }
+
+  result <- result |>
+    tidyr::replace_na(list(used_growth_ALL = FALSE, `used_growth_0-15Y` = FALSE, `used_growth_0-5Y` = FALSE))
+
 
 
   formatted_result <- result |>
