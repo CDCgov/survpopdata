@@ -546,9 +546,9 @@ process_dist_pop_data <- function(pop_data,
 
   # Output
   result <- base_data |>
-    apply_growth_rate("Total") |>
-    apply_growth_rate("Under15Pop") |>
-    apply_growth_rate("Under5Pop")
+    apply_growth_rate("ALL") |>
+    apply_growth_rate("0-15Y") |>
+    apply_growth_rate("0-5Y")
 
   # Validity checks
 
