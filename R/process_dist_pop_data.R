@@ -483,20 +483,18 @@ process_dist_pop_data <- function(pop_data,
   # Transform POLIS wide and 0-5Y/U0-15Y/UALL to Under5Pop/Under15Pop/Total
   polis_pop <- pop_data |>
     dplyr::arrange(year) |>
-    dplyr::select(-CREATEDDATE, - UPDATEDDATE) |>
-    dplyr::distinct(ADM0_NAME, ADM1_NAME, ADM2_NAME, year, AgeGroupCode, datasource, .keep_all = TRUE) |>
+    dplyr::select(-CREATEDDATE, -UPDATEDDATE, -STARTDATE, -ENDDATE, -is_forward_fill) |>
+    #dplyr::distinct(ADM0_NAME, ADM1_NAME, ADM2_NAME, year, AgeGroupCode, datasource, .keep_all = TRUE) |>
     tidyr::pivot_wider(names_from = AgeGroupCode, values_from = Value) |>
-    dplyr::mutate(
-      Admin0Name = ADM0_NAME,
-      Admin1Name = ADM1_NAME,
-      Admin2Name = ADM2_NAME,
-      year = as.numeric(year),
-      Under5Pop = `0-5Y`,
-      Under15Pop = `0-15Y`,
-      Total = ALL
-    ) |>
-    dplyr::select(Admin0Name, Admin1Name, Admin2Name, year, Under5Pop, Under15Pop, Total, datasource) |>
-    join_pop_to_district_year_shapes(district_long_subset)
+    dplyr::rename(
+      ADM0_GUID = adm0guid,
+      ADM1_GUID = adm1guid,
+      GUID = adm2guid,
+      active.year.01 = year
+    )
+
+  polis_pop_2 <- dplyr::left_join(district_long_subset, polis_pop) |>
+    dplyr::distinct()
 
   # Input Non-POLIS data and removal of forward-filled repeats Values
   non_polis_pop <- load_all_patches(pakistan_file_path,
@@ -578,7 +576,20 @@ process_dist_pop_data <- function(pop_data,
   result <- base_data |>
     apply_growth_rate("Total") |>
     apply_growth_rate("Under15Pop") |>
-    apply_growth_rate("Under5Pop") |>
+    apply_growth_rate("Under5Pop")
+
+  # Validity checks
+
+  # Ensure there are no duplicate GUID-year combination
+  duplicated_guid_year <- result |>
+    dplyr::group_by(ADM2_GUID, year) |>
+    dplyr::summarise(n = dplyr::n()) |>
+    dplyr::filter(n > 1)
+
+  duplicated_guid_year$year |> table()
+
+
+  formatted_result <- result |>
     dplyr::mutate(
       Used_Growth_Rate = ifelse(
         used_growth_Under5Pop | used_growth_Under15Pop | used_growth_Total,
