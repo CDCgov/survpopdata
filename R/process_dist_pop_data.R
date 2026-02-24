@@ -325,22 +325,22 @@ join_pop_to_district_year_shapes <- function(pop_named, district_long) {
 remove_forward_fill_non_polis <- function(non_polis_pop) {
   non_polis_pop |>
     dplyr::filter(datasource != "POLIS") |>
-    dplyr::arrange(ADM2_GUID, datasource, year) |>
-    dplyr::group_by(ADM2_GUID, datasource) |>
+    dplyr::arrange(GUID, datasource, active.year.01) |>
+    dplyr::group_by(GUID, datasource) |>
     dplyr::mutate(
       Total = dplyr::if_else(
         !is.na(dplyr::lag(Total)) & Total == dplyr::lag(Total) &
-          year == dplyr::lag(year) + 1,
+          active.year.01 == dplyr::lag(active.year.01) + 1,
         NA_real_, Total
       ),
       Under15Pop = dplyr::if_else(
         !is.na(dplyr::lag(Under15Pop)) & Under15Pop == dplyr::lag(Under15Pop) &
-          year == dplyr::lag(year) + 1,
+          active.year.01 == dplyr::lag(active.year.01) + 1,
         NA_real_, Under15Pop
       ),
       Under5Pop = dplyr::if_else(
         !is.na(dplyr::lag(Under5Pop)) & Under5Pop == dplyr::lag(Under5Pop) &
-          year == dplyr::lag(year) + 1,
+          active.year.01 == dplyr::lag(active.year.01) + 1,
         NA_real_, Under5Pop
       )
     ) |>
@@ -364,9 +364,9 @@ deduplicate_population <- function(pop_with_guid) {
         datasource == "JAMAL POP" ~ 1L,
         TRUE ~ 99L
       ),
-      has_any_value = !(is.na(Total) & is.na(Under15Pop) & is.na(Under5Pop))
+      has_any_value = !(is.na(ALL) & is.na(`0-15Y`) & is.na(`0-5Y`))
     ) |>
-    dplyr::group_by(ADM2_GUID, year) |>
+    dplyr::group_by(GUID, active.year.01) |>
     dplyr::slice_max(source_rank) |>
     dplyr::ungroup() |>
     dplyr::select(-source_rank, -has_any_value)
@@ -493,7 +493,7 @@ process_dist_pop_data <- function(pop_data,
       active.year.01 = year
     )
 
-  polis_pop_2 <- dplyr::left_join(district_long_subset, polis_pop) |>
+  polis_pop <- dplyr::left_join(district_long_subset, polis_pop) |>
     dplyr::distinct()
 
   # Input Non-POLIS data and removal of forward-filled repeats Values
@@ -503,12 +503,26 @@ process_dist_pop_data <- function(pop_data,
                                     somalia_2024_file_path,
                                     kenya_file_path,
                                     jamal_pop_file_path,
-                                    edav) |>
-    join_pop_to_district_year_shapes(district_long_subset) |>
-    remove_forward_fill_non_polis()
+                                    edav)
+
+  # Format to match the district shapefile
+  non_polis_pop <- non_polis_pop |>
+    dplyr::rename(ADM0_NAME = Admin0Name,
+                  ADM1_NAME = Admin1Name,
+                  ADM2_NAME = Admin2Name,
+                  active.year.01 = year,
+                  GUID = adm2guid)
+
+  non_polis_pop <- dplyr::left_join(district_long_subset, non_polis_pop) |>
+    remove_forward_fill_non_polis() |>
+    dplyr::rename(`0-5Y` = Under5Pop,
+                  `0-15Y` = Under15Pop,
+                  ALL = Total)
 
   # Combine POLIS + Non-POLIS data
   combined_pop <- dplyr::bind_rows(polis_pop, non_polis_pop) |>
+    dplyr::relocate(ADM1_GUID, .after = ADM0_GUID) |>
+    dplyr::relocate(GUID, .after = ADM1_GUID) |>
     deduplicate_population()
 
   # Perform check to make sure ADM2GUIDs are equal to stated admin2guids of non-polis sources
