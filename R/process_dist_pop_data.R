@@ -525,22 +525,14 @@ process_dist_pop_data <- function(pop_data,
     dplyr::relocate(GUID, .after = ADM1_GUID) |>
     deduplicate_population()
 
-  base_data <- district_long_subset |>
-    dplyr::mutate(active.year.01 = as.numeric(active.year.01)) |>
+  # Add growth rates
+  base_data <- combined_pop |>
     dplyr::rename(ADM2_GUID = "GUID", year = "active.year.01") |>
-    dplyr::distinct(ADM2_GUID, year, .keep_all = TRUE) |>
-    dplyr::left_join(
-      combined_pop |>
-        dplyr::select(ADM2_GUID, year, Under5Pop, Under15Pop, Total, datasource),
-      by = c("ADM2_GUID", "year")
-    ) |>
     dplyr::group_by(ADM2_GUID) |>
     dplyr::arrange(year, .by_group = TRUE) |>
-    tidyr::fill(datasource, .direction = "down") |>
+    tidyr::fill(datasource, .direction = "downup") |>
     dplyr::ungroup() |>
     dplyr::left_join(growth_rates, by = c("ADM0_NAME" = "Admin0Name", "year" = "year"))
-
-  # Note that there are mismatches in names
 
   # Some years the growth rates are not available. These need to be filled using "downup."
   # We first arrange from oldest to newest year, then fill.
