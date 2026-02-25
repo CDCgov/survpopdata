@@ -461,8 +461,10 @@ apply_growth_rate <- function(base_data, pop_column) {
 #' @param dist_file_path `str` File path to the global district shapefile.
 #' @param growth_rate_file_path `str` File path to the growth rate Excel file.
 #' @inheritParams load_all_patches
-#' @param output_file Optional .rds output path.
-#' @return Tibble with GUID + district-year rows and final output naming.
+#' @param output_dir `str` Where to output the cleaned district population dataset.
+#' @param output_type `str` Output types. Valid values are 'rds', 'csv', and 'parquet'. Default
+#' is `rds`.
+#' @return `tibble` Cleaned district population dataset.
 #'
 #' @export
 #'
@@ -480,8 +482,13 @@ process_dist_pop_data <- function(pop_data,
                                   somalia_2024_file_path = file.path(pop_dir, "pop raw/csv files/AFPPOP_24.csv"),
                                   kenya_file_path = file.path(pop_dir, "pop raw/csv files/Kenya_SubCounty_pop_2018.csv"),
                                   jamal_pop_file_path = file.path(pop_dir, "pop raw/csv files/POPU15.csv"),
-                                  output_file = file.path(pop_dir, "processed_pop_file"),
+                                  output_dir = file.path(pop_dir, "processed_pop_file"),
+                                  output_type = "rds",
                                   edav = TRUE) {
+
+  if (!output_type %in% c("rds", "csv", "parquet")) {
+    cli::cli_abort("Please pass only 'rds', 'csv', or 'parquet' in output_type.")
+  }
 
   # Crosswalk and remove forward fills
   pop_data <- crosswalk_pop_cols(pop_data)
@@ -665,6 +672,11 @@ process_dist_pop_data <- function(pop_data,
                                    ordered = TRUE)) |>
     dplyr::select(-dplyr::contains("used_growth_rate_"))
 
-  if (!is.null(output_file)) readr::write_rds(result, output_file)
-  result
+  if (!is.null(output_file)){
+    sirfunctions::sirfunctions_io("write", NULL, file_loc = file.path(output_dir, "global.dist.", output_type),
+                                  obj = formatted_result)
+  }
+
+  invisible(formatted_result)
+
 }

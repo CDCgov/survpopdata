@@ -17,7 +17,8 @@ process_dist_pop_data(
   somalia_2024_file_path = file.path(pop_dir, "pop raw/csv files/AFPPOP_24.csv"),
   kenya_file_path = file.path(pop_dir, "pop raw/csv files/Kenya_SubCounty_pop_2018.csv"),
   jamal_pop_file_path = file.path(pop_dir, "pop raw/csv files/POPU15.csv"),
-  output_file = file.path(pop_dir, "processed_pop_file"),
+  output_dir = file.path(pop_dir, "processed_pop_file"),
+  output_type = "rds",
   edav = TRUE
 )
 }
@@ -42,10 +43,13 @@ process_dist_pop_data(
 
 \item{jamal_pop_file_path}{Path to Jamal file.}
 
-\item{output_file}{Optional .rds output path.}
+\item{output_dir}{\code{str} Where to output the cleaned district population dataset.}
+
+\item{output_type}{\code{str} Output types. Valid values are 'rds', 'csv', and 'parquet'. Default
+is \code{rds}.}
 }
 \value{
-Tibble with GUID + district-year rows and final output naming.
+\code{tibble} Cleaned district population dataset.
 }
 \description{
 Combines POLIS + patches + Jamal; joins to district-year shapes; deduplicates;
