@@ -674,7 +674,8 @@ process_dist_pop_data <- function(pop_data,
 
   if (!is.null(output_file)){
     sirfunctions::sirfunctions_io("write", NULL, file_loc = file.path(output_dir, "global.dist.", output_type),
-                                  obj = formatted_result)
+                                  obj = formatted_result,
+                                  edav = edav)
   }
 
   invisible(formatted_result)
