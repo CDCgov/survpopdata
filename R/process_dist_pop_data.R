@@ -184,11 +184,16 @@ load_jamal_pop <- function(
                                              edav = edav)
 
   jamal_pop_formatted <- jamal_pop |>
+    # Some of the PlaceIds already have the curly braces
+    dplyr::mutate(PlaceId = stringr::str_replace_all(PlaceId, "\\{", ""),
+                  PlaceId = stringr::str_replace_all(PlaceId, "\\}", ""),
+                  PlaceId = stringr::str_trim(PlaceId),
+                  PlaceId = stringr::str_to_upper(PlaceId)) |>
     dplyr::mutate(
       Admin0Name = toupper(Admin0),
       Admin1Name = toupper(Admin1),
       Admin2Name = toupper(Admin2),
-      adm2guid = paste0("{", toupper(PlaceId), "}"),
+      adm2guid = paste0("{", PlaceId, "}"),
       Admin0Name = ifelse(stringr::str_detect(Admin0Name, "IVOIRE"),"COTE D IVOIRE", Admin0Name)
     ) |>
     dplyr::select(ends_with("Name"), starts_with("2"), adm2guid) |>
@@ -200,6 +205,15 @@ load_jamal_pop <- function(
                   Total = NA_real_,
                   year = as.integer(year),
                   datasource = "JAMAL POP")
+
+  jamal_pop_formatted <- jamal_pop_formatted |>
+    # Remove invalid ADM2GUIDs from Jamal Pop
+    # {C7B58BAE-7125-41F8-8A19-E8F4378DCCE5} North Gondar was only active in 2020 based on district shapefile, so remove for 2019, 2021, 2022
+    # {2BA264D0-ABCA-4EC5-89F0-794744688AF1} North Gondar was only active in 2021 based on district shapefile, so remove for 2019, 2020
+    # {A56970BF-2D44-4FD6-A3D4-6B351339B4AB} BENCH MAJI was only active in 2019, 2020 based on district shapefile, so remove for 2021 and 2022
+    dplyr::filter(!(adm2guid == "{A56970BF-2D44-4FD6-A3D4-6B351339B4AB}" & datasource == "JAMAL POP" & year %in% c(2021, 2022)),
+                  !(adm2guid == "{2BA264D0-ABCA-4EC5-89F0-794744688AF1}" & datasource == "JAMAL POP" & year %in% c(2019, 2020)),
+                  !(adm2guid == "{C7B58BAE-7125-41F8-8A19-E8F4378DCCE5}" & datasource == "JAMAL POP" & year %in% c(2019, 2021, 2022)))
 
   return(jamal_pop_formatted)
 }
@@ -512,8 +526,8 @@ process_dist_pop_data <- function(pop_data,
                                     jamal_pop_file_path,
                                     edav)
 
-  # Jamal pop, Kenya contains only U15
-  # Pakistan,  Somalia contain only Total
+  # Jamal pop, Kenya, Pakistan contains only U15
+  # Somalia contain only Total
   #
   # Format to match the district shapefile
   non_polis_pop <- non_polis_pop |>
@@ -523,7 +537,12 @@ process_dist_pop_data <- function(pop_data,
                   active.year.01 = year,
                   GUID = adm2guid)
 
-  non_polis_pop <- dplyr::left_join(district_long_subset, non_polis_pop) |>
+ # Fill GUIDs based on names
+  non_polis_pop <- dplyr::left_join(district_long_subset |>
+                                      dplyr::rename(sf_guid = "GUID"),
+                                    non_polis_pop) |>
+    dplyr::mutate(GUID = dplyr::coalesce(GUID, sf_guid)) |>
+    dplyr::select(-sf_guid) |>
     remove_forward_fill_non_polis() |>
     dplyr::rename(`0-5Y` = Under5Pop,
                   `0-15Y` = Under15Pop,
