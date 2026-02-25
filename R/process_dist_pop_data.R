@@ -620,6 +620,7 @@ process_dist_pop_data <- function(pop_data,
                            `used_growth_0-5Y` = FALSE,
                            datasource = "POLIS API")) |>
     dplyr::rename(
+      who_region = "WHO_REGION",
       adm0guid = "ADM0_GUID",
       adm1guid = "ADM1_GUID",
       adm2guid = "ADM2_GUID",
@@ -638,15 +639,16 @@ process_dist_pop_data <- function(pop_data,
         used_growth_rate_tot & used_growth_rate_u5 & used_growth_rate_u15 ~ "u5, u15, tot",
         used_growth_rate_tot & used_growth_rate_u5 & !used_growth_rate_u15 ~ "u5, tot",
         used_growth_rate_tot & !used_growth_rate_u5 & used_growth_rate_u15 ~ "u15, tot",
+        !used_growth_rate_tot & used_growth_rate_u5 & used_growth_rate_u15 ~ "u5, u15",
         used_growth_rate_tot & !used_growth_rate_u5 & !used_growth_rate_u15 ~ "tot",
         !used_growth_rate_tot & used_growth_rate_u5 & !used_growth_rate_u15 ~ "u5",
         !used_growth_rate_tot & !used_growth_rate_u5 & used_growth_rate_u15 ~ "u15",
         .default = "no"
       ),
-      miss.u15 = dplyr::if_else(is.na(u15pop), TRUE, FALSE),
-      miss.totpop = dplyr::if_else(is.na(totpop), TRUE, FALSE),
+      miss_u15 = dplyr::if_else(is.na(u15pop), TRUE, FALSE),
+      miss_totpop = dplyr::if_else(is.na(totpop), TRUE, FALSE),
       # U15 population category
-      pop.cat = dplyr::case_when(
+      pop_cat = dplyr::case_when(
         is.na(u15pop) == T | u15pop == 0 ~ "Missing",
         dplyr::between(u15pop, 0, 24999) ~ "<25,000",
         dplyr::between(u15pop, 25000, 49999) ~ "25,000-49,999",
@@ -654,29 +656,12 @@ process_dist_pop_data <- function(pop_data,
         dplyr::between(u15pop, 100000, 499999) ~ "100,000-499,999",
         u15pop >= 500000 ~ ">=500,000")
     ) |>
-    dplyr::mutate(pop.cat = factor(pop.cat,
+    dplyr::mutate(pop_cat = factor(pop_cat,
                                    levels = c("Missing", "<25,000",
                                               "25,000-49,999", "50,000-99,999",
                                               "100,000-499,999", ">=500,000"),
-                                   ordered = TRUE))
-
-    dplyr::mutate(
-      Used_Growth_Rate = ifelse(
-        used_growth_Under5Pop | used_growth_Under15Pop | used_growth_Total,
-        "Yes", "No"
-      ),
-      GUID = ADM2_GUID
-    ) |>
-    dplyr::rename(
-      Country_Name  = ADM0_NAME,
-      Province_Name = ADM1_NAME,
-      District_Name = ADM2_NAME,
-      SOURCE        = datasource
-    ) |>
-    dplyr::select(
-      -used_growth_Under5Pop, -used_growth_Under15Pop, -used_growth_Total,
-      -active.year.01, -datasource
-    )
+                                   ordered = TRUE)) |>
+    dplyr::select(-dplyr::contains("used_growth_rate_"))
 
   if (!is.null(output_file)) readr::write_rds(result, output_file)
   result
