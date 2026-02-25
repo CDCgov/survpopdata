@@ -554,6 +554,38 @@ process_dist_pop_data <- function(pop_data,
     dplyr::relocate(GUID, .after = ADM1_GUID) |>
     deduplicate_population()
 
+  # Check to make sure there are no duplicated guid - year populations
+  combined_pop_dup <- combined_pop |>
+    dplyr::group_by(GUID, active.year.01) |>
+    dplyr::summarize(n = n()) |>
+    dplyr::filter(n > 1)
+
+  if (nrow(combined_pop_dup) != 0) {
+    cli::cli_alert_warning("There are duplicates in combined population dataset. Check the pop errors folder.")
+    sirfunctions::sirfunctions_io("write", NULL,
+                                  file_loc = file.path(pop_dir, "errors", paste0(Sys.Date(), "_combined_pop_duplicates.parquet")),
+                                  obj = combined_pop_dup,
+                                  edav = edav)
+  } else {
+    cli::cli_alert_success("No duplicates in combined population dataset")
+  }
+
+  # Check for GUIDs in the pop file that are not in the district shapefile
+  mismatches <- dplyr::anti_join(combined_pop |>
+                                   dplyr::select(GUID, active.year.01, datasource),
+                                 district_long_subset |>
+                                   dplyr::select(GUID, active.year.01))
+
+  if (nrow(mismatches) != 0) {
+    cli::cli_alert_info("There are GUIDs present in the population dataset not in the district shapefile. Check the pop errors folder.")
+    sirfunctions::sirfunctions_io("write", NULL,
+                                  file_loc = file.path(pop_dir, "errors", paste0(Sys.Date(), "_combined_pop_duplicates.parquet")),
+                                  obj = mismatches,
+                                  edav = edav)
+  } else {
+    cli::cli_alert_success("All GUIDs in the population dataset are present in the district shapefile.")
+  }
+
   # Add growth rates
   base_data <- combined_pop |>
     dplyr::rename(ADM2_GUID = "GUID", year = "active.year.01") |>
