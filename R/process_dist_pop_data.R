@@ -30,12 +30,12 @@ load_pakistan_patch <- function(
       )
     ) |>
     dplyr::select(Country, Province, District, `2022`, `2023`) |>
-    tidyr::pivot_longer(c(`2022`, `2023`), names_to = "year", values_to = "Total") |>
+    tidyr::pivot_longer(c(`2022`, `2023`), names_to = "year", values_to = "Under15Pop") |>
     dplyr::mutate(
       year = as.numeric(year),
-      Total = as.numeric(Total),
+      Total = NA_real_,
       Under5Pop = NA_real_,
-      Under15Pop = NA_real_,
+      Under15Pop = as.numeric(Under15Pop),
       datasource = "PATCH_PAKISTAN"
     ) |>
     dplyr::rename(
@@ -512,6 +512,9 @@ process_dist_pop_data <- function(pop_data,
                                     jamal_pop_file_path,
                                     edav)
 
+  # Jamal pop, Kenya contains only U15
+  # Pakistan,  Somalia contain only Total
+  #
   # Format to match the district shapefile
   non_polis_pop <- non_polis_pop |>
     dplyr::rename(ADM0_NAME = Admin0Name,
@@ -573,6 +576,9 @@ process_dist_pop_data <- function(pop_data,
     cli::cli_alert_success("No duplicate GUID year combinations")
   }
 
+
+  # USE GROWTH RATE using district names
+
   formatted_result <- result |>
     dplyr::select(-FK_DataSetId, -ISO_3_CODE) |>
     tidyr::replace_na(list(used_growth_ALL = FALSE,
@@ -594,6 +600,15 @@ process_dist_pop_data <- function(pop_data,
       used_growth_rate_u15 = "used_growth_0-15Y"
     ) |>
     dplyr::mutate(
+      used_growth_rate = dplyr::case_when(
+        used_growth_rate_tot & used_growth_rate_u5 & used_growth_rate_u15 ~ "u5, u15, tot",
+        used_growth_rate_tot & used_growth_rate_u5 & !used_growth_rate_u15 ~ "u5, tot",
+        used_growth_rate_tot & !used_growth_rate_u5 & used_growth_rate_u15 ~ "u15, tot",
+        used_growth_rate_tot & !used_growth_rate_u5 & !used_growth_rate_u15 ~ "tot",
+        !used_growth_rate_tot & used_growth_rate_u5 & !used_growth_rate_u15 ~ "u5",
+        !used_growth_rate_tot & !used_growth_rate_u5 & used_growth_rate_u15 ~ "u15",
+        .default = "no"
+      ),
       miss.u15 = dplyr::if_else(is.na(u15pop), TRUE, FALSE),
       miss.totpop = dplyr::if_else(is.na(totpop), TRUE, FALSE),
       # U15 population category
