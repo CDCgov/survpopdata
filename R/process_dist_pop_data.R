@@ -611,23 +611,6 @@ process_dist_pop_data <- function(pop_data,
     apply_growth_rate("0-15Y") |>
     apply_growth_rate("0-5Y")
 
-  # Validity checks
-
-  # Ensure there are no duplicate GUID-year combination
-  duplicated_guid_year <- result |>
-    dplyr::group_by(ADM2_GUID, year) |>
-    dplyr::summarise(n = dplyr::n()) |>
-    dplyr::filter(n > 1) |>
-    dplyr::ungroup()
-
-  if (nrow(duplicated_guid_year) > 0) {
-    cli::cli_alert_danger("There are duplicate GUID year combinations!")
-    cli::cli_li(duplicated_guid_year$ADM2_GUID)
-  } else {
-    cli::cli_alert_success("No duplicate GUID year combinations")
-  }
-
-
   # USE GROWTH RATE using district names
 
   formatted_result <- result |>
