@@ -620,7 +620,8 @@ process_dist_pop_data <- function(pop_data,
                            `used_growth_0-5Y` = FALSE,
                            datasource = "POLIS API")) |>
     dplyr::rename(
-      who_region = "WHO_REGION",
+      who.region = "WHO_REGION",
+      growth.rate = "growth_rate",
       adm0guid = "ADM0_GUID",
       adm1guid = "ADM1_GUID",
       adm2guid = "ADM2_GUID",
@@ -634,8 +635,9 @@ process_dist_pop_data <- function(pop_data,
       used_growth_rate_u5 = "used_growth_0-5Y",
       used_growth_rate_u15 = "used_growth_0-15Y"
     ) |>
+    dplyr::relocate(ctry, prov,dist, .after = who.region) |>
     dplyr::mutate(
-      used_growth_rate = dplyr::case_when(
+      used.growth.rate = dplyr::case_when(
         used_growth_rate_tot & used_growth_rate_u5 & used_growth_rate_u15 ~ "u5, u15, tot",
         used_growth_rate_tot & used_growth_rate_u5 & !used_growth_rate_u15 ~ "u5, tot",
         used_growth_rate_tot & !used_growth_rate_u5 & used_growth_rate_u15 ~ "u15, tot",
@@ -645,10 +647,10 @@ process_dist_pop_data <- function(pop_data,
         !used_growth_rate_tot & !used_growth_rate_u5 & used_growth_rate_u15 ~ "u15",
         .default = "no"
       ),
-      miss_u15 = dplyr::if_else(is.na(u15pop), TRUE, FALSE),
-      miss_totpop = dplyr::if_else(is.na(totpop), TRUE, FALSE),
+      miss.u15 = dplyr::if_else(is.na(u15pop), TRUE, FALSE),
+      miss.totpop = dplyr::if_else(is.na(totpop), TRUE, FALSE),
       # U15 population category
-      pop_cat = dplyr::case_when(
+      pop.cat = dplyr::case_when(
         is.na(u15pop) == T | u15pop == 0 ~ "Missing",
         dplyr::between(u15pop, 0, 24999) ~ "<25,000",
         dplyr::between(u15pop, 25000, 49999) ~ "25,000-49,999",
@@ -656,7 +658,7 @@ process_dist_pop_data <- function(pop_data,
         dplyr::between(u15pop, 100000, 499999) ~ "100,000-499,999",
         u15pop >= 500000 ~ ">=500,000")
     ) |>
-    dplyr::mutate(pop_cat = factor(pop_cat,
+    dplyr::mutate(pop.cat = factor(pop.cat,
                                    levels = c("Missing", "<25,000",
                                               "25,000-49,999", "50,000-99,999",
                                               "100,000-499,999", ">=500,000"),
