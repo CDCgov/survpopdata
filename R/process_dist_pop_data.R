@@ -842,6 +842,8 @@ process_dist_pop_data <- function(pop_data,
                                   edav = edav)
   }
 
+  cli::cli_alert_success("Processing district population file complete.")
+
   invisible(formatted_result)
 
 }
