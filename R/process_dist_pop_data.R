@@ -850,7 +850,20 @@ process_dist_pop_data <- function(pop_data,
                      missing_tot = sum(is.na(totpop)),
                      total_districts = dplyr::n(),
                      missing_u15_pct = round(missing_u15 / total_districts * 100, 2)) |>
-    dplyr::arrange(who.region, dplyr::desc(year), dplyr::desc(missing_u15_pct))
+    dplyr::arrange(who.region, dplyr::desc(year), dplyr::desc(missing_u15_pct)) |>
+    dplyr::ungroup()
+
+  # Get max year where all district data are present
+  last_year_w_complete_data <- prop_missingness_by_ctry_year |>
+    dplyr::group_by(ctry) |>
+    dplyr::filter(missing_u15_pct == 0) |>
+    dplyr::summarize(last_year_with_complete_data = max(year)) |>
+    dplyr::ungroup()
+
+  # Join
+  prop_missingness_by_ctry_year <- dplyr::left_join(prop_missingness_by_ctry_year, last_year_w_complete_data) |>
+    dplyr::arrange(who.region, dplyr::desc(year), dplyr::desc(missing_u15_pct)) |>
+    dplyr::ungroup()
 
   sirfunctions::sirfunctions_io("write", NULL, file_loc = file.path(pop_dir,
                                                                     "pop_diagnostics",
