@@ -280,6 +280,7 @@ load_world_pop_patch <- function(world_pop_file_path = "GID/PEB/SIR/Data/pop/pop
                   Admin1Name = gsub("-", "_", Admin1Name),
                   Total = NA_real_) |>
     dplyr::select(Admin0Name, Admin1Name, Admin2Name, year, Under15Pop, Under5Pop, Total, datasource, adm2guid)
+
 }
 
 #' Combine all district patch sources
@@ -540,7 +541,9 @@ apply_growth_rate <- function(base_data, pop_column) {
 #'
 patch_polis_with_non_polis_pop <- function(polis_pop, non_polis_pop, patch_file) {
 
-  if (!patch_file %in% c("JAMAL_POP", "PATCH_PAKISTAN", "KENYA 2018 PATCH", "PATCH_SOMALIA")) {
+  if (!patch_file %in% c("JAMAL_POP", "PATCH_PAKISTAN",
+                         "KENYA_2018_PATCH", "PATCH_SOMALIA",
+                         "WORLD_POP")) {
     cli::cli_abort("Invalid patch file datasource.")
   }
 
@@ -599,6 +602,7 @@ process_dist_pop_data <- function(pop_data,
                                   somalia_2024_file_path = file.path(pop_dir, "pop raw/csv files/AFPPOP_24.csv"),
                                   kenya_file_path = file.path(pop_dir, "pop raw/csv files/Kenya_SubCounty_pop_2018.csv"),
                                   jamal_pop_file_path = file.path(pop_dir, "pop raw/csv files/POPU15.csv"),
+                                  world_pop_file_path = file.path(pop_dir, "pop raw/csv files/adm2_2015_pop.csv"),
                                   output_dir = file.path(pop_dir, "processed_pop_file"),
                                   output_type = "parquet",
                                   edav = TRUE) {
@@ -638,7 +642,6 @@ process_dist_pop_data <- function(pop_data,
   polis_pop <- pop_data |>
     dplyr::arrange(year) |>
     dplyr::select(-CREATEDDATE, -UPDATEDDATE, -STARTDATE, -ENDDATE, -is_forward_fill) |>
-    #dplyr::distinct(ADM0_NAME, ADM1_NAME, ADM2_NAME, year, AgeGroupCode, datasource, .keep_all = TRUE) |>
     tidyr::pivot_wider(names_from = AgeGroupCode, values_from = Value) |>
     dplyr::rename(
       ADM0_GUID = adm0guid,
@@ -672,10 +675,10 @@ process_dist_pop_data <- function(pop_data,
                                     somalia_2024_file_path,
                                     kenya_file_path,
                                     jamal_pop_file_path,
+                                    world_pop_file_path,
                                     edav)
 
-  # Jamal pop, Kenya, Pakistan contains only U15
-  # Somalia contain only Total
+  # Jamal pop, Kenya, Pakistan, Somalia contains only U15
   #
   # Format to match the district shapefile
   non_polis_pop <- non_polis_pop |>
@@ -687,8 +690,8 @@ process_dist_pop_data <- function(pop_data,
     dplyr::distinct()
 
   # Ensure the Jamal pops match the names with the GUIDs
-  non_polis_jamal <- non_polis_pop |>
-    dplyr::filter(datasource == "JAMAL_POP") |>
+  non_polis_jamal_wp <- non_polis_pop |>
+    dplyr::filter(datasource %in% c("JAMAL_POP", "WORLD_POP")) |>
     dplyr::right_join(district_long_subset |>
                         dplyr::rename(sf_adm0_name = ADM0_NAME,
                                       sf_adm1_name = ADM1_NAME,
@@ -700,13 +703,14 @@ process_dist_pop_data <- function(pop_data,
 
   # Fill GUIDs based on names for the Pakistan, Somalia, and Kenya patch since
   # There don't have GUIDs
-  non_polis_pop_non_jamal <- dplyr::left_join(district_long_subset,
+  non_polis_pop_non_jamal_wp <- dplyr::left_join(district_long_subset,
                                     non_polis_pop |>
-                                      dplyr::filter(datasource != "JAMAL_POP") |>
+                                      dplyr::filter(!datasource %in% c("JAMAL_POP", "WORLD_POP")) |>
                                       dplyr::select(-GUID))
 
-  non_polis_pop_combined <- dplyr::bind_rows(non_polis_pop_non_jamal, non_polis_jamal) |>
-    dplyr::filter(!is.na(datasource))
+  non_polis_pop_combined <- dplyr::bind_rows(non_polis_pop_non_jamal_wp, non_polis_jamal_wp) |>
+    dplyr::filter(!is.na(datasource)) |>
+    dplyr::distinct()
 
   non_polis_pop_combined <- non_polis_pop_combined |>
     remove_forward_fill_non_polis() |>
@@ -717,8 +721,11 @@ process_dist_pop_data <- function(pop_data,
   forward_filled_non_polis_pop_n <- sum(non_polis_pop_combined$is_forward_fill, na.rm = TRUE)
   cli::cli_alert_info(paste0("There were ", forward_filled_non_polis_pop_n, " forward-filled pop data in the patch files."))
 
+  non_polis_pop_combined <- non_polis_pop_combined |>
+    dplyr::select(-dplyr::starts_with("ff"), -is_forward_fill)
+
   # Fill using the following step:
-  # PAK and SOM Patch > KENYA Patch > Jamal Pop Patch
+  # PAK and SOM Patch > KENYA Patch > Jamal Pop Patch |> World Pop
   u15_missingness_before <- sum(is.na(polis_pop$`0-15Y`))
   cli::cli_alert_info(paste0(round(u15_missingness_before),
                              " adm2guid-year combination missing populations in POLIS API (forward-fills removed)."))
@@ -726,6 +733,7 @@ process_dist_pop_data <- function(pop_data,
   u15_missingness <- sum(is.na(combined_pop$`0-15Y`))
   cli::cli_alert_info(paste0(round(u15_missingness),
                              " adm2guid-year combination missing populations after patching with PATCH_PAKISTAN."))
+
   for (i in c("PATCH_SOMALIA", "KENYA_2018_PATCH", "JAMAL_POP", "WORLD_POP")) {
     combined_pop <- patch_polis_with_non_polis_pop(combined_pop, non_polis_pop_combined, i)
     u15_missingness <- sum(is.na(combined_pop$`0-15Y`))
@@ -810,7 +818,6 @@ process_dist_pop_data <- function(pop_data,
   # Compare missingness after growth rate added to population data
   cli::cli_alert_info(paste0(sum(is.na(base_data$`0-15Y`)) - sum(is.na(result$`0-15Y`)),
                              " additional records filled using growth rates."))
-
 
   # Add WHO region to results because the new SF doesn't have that column
   result <- dplyr::left_join(result |>

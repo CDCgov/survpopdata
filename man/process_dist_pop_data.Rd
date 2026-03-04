@@ -17,6 +17,7 @@ process_dist_pop_data(
   somalia_2024_file_path = file.path(pop_dir, "pop raw/csv files/AFPPOP_24.csv"),
   kenya_file_path = file.path(pop_dir, "pop raw/csv files/Kenya_SubCounty_pop_2018.csv"),
   jamal_pop_file_path = file.path(pop_dir, "pop raw/csv files/POPU15.csv"),
+  world_pop_file_path = file.path(pop_dir, "pop raw/csv files/adm2_2015_pop.csv"),
   output_dir = file.path(pop_dir, "processed_pop_file"),
   output_type = "parquet",
   edav = TRUE
@@ -42,6 +43,8 @@ process_dist_pop_data(
 \item{kenya_file_path}{Path to Kenya 2018 file.}
 
 \item{jamal_pop_file_path}{Path to Jamal file.}
+
+\item{world_pop_file_path}{\code{str} Path to the world pop file path.}
 
 \item{output_dir}{\code{str} Where to output the cleaned district population dataset.}
 
