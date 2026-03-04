@@ -353,6 +353,18 @@ remove_forward_fill_non_polis <- function(non_polis_pop) {
     dplyr::arrange(GUID, datasource, active.year.01) |>
     dplyr::group_by(GUID, datasource) |>
     dplyr::mutate(
+
+      # This flag was written with AI
+      # Microsoft 365 Copilot version bizchat.20260217.44.1
+      ff_total   = !is.na(dplyr::lag(Total)) & Total == dplyr::lag(Total) &
+        active.year.01 == dplyr::lag(active.year.01) + 1,
+      ff_under15 = !is.na(dplyr::lag(Under15Pop)) & Under15Pop == dplyr::lag(Under15Pop) &
+        active.year.01 == dplyr::lag(active.year.01) + 1,
+      ff_under5  = !is.na(dplyr::lag(Under5Pop))  & Under5Pop  == dplyr::lag(Under5Pop)  &
+        active.year.01 == dplyr::lag(active.year.01) + 1,
+      # Combined flag: TRUE if any variable was forward filled on this row
+      is_forward_fill = ff_total | ff_under15 | ff_under5,
+
       Total = dplyr::if_else(
         !is.na(dplyr::lag(Total)) & Total == dplyr::lag(Total) &
           active.year.01 == dplyr::lag(active.year.01) + 1,
@@ -646,6 +658,9 @@ process_dist_pop_data <- function(pop_data,
     dplyr::rename(`0-5Y` = Under5Pop,
                   `0-15Y` = Under15Pop,
                   ALL = Total)
+
+  forward_filled_non_polis_pop_n <- sum(non_polis_pop_combined$is_forward_fill, na.rm = TRUE)
+  cli::cli_alert_info(paste0("There were ", forward_filled_non_polis_pop_n, " forward-filled pop data in the patch files."))
 
   # Fill using the following step:
   # PAK and SOM Patch > KENYA Patch > Jamal Pop Patch
