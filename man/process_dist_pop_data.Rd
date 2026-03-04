@@ -47,6 +47,8 @@ process_dist_pop_data(
 
 \item{output_type}{\code{str} Output types. Valid values are 'rds', 'csv', and 'parquet'. Default
 is \code{rds}.}
+
+\item{edav}{\code{logical} Whether to use EDAV or not to load the file.}
 }
 \value{
 \code{tibble} Cleaned district population dataset.

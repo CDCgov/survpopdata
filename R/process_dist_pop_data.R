@@ -172,8 +172,9 @@ load_kenya_patch <- function(
 #' Load Jamal district under-15 population
 #'
 #' @param jamal_pop_file_path Path to Jamal file.
+#' @param edav `logical` Whether to use EDAV or not to load the file.
 #'
-#' @return Tibble with Admin names, year, age columns, datasource.
+#' @returns `tibble` Population data with Admin names, year, age columns, datasource.
 #'
 #' @export
 load_jamal_pop <- function(
@@ -230,12 +231,64 @@ load_jamal_pop <- function(
   return(jamal_pop_formatted)
 }
 
+
+#' Load 2015 World Pop data
+#'
+#' @description
+#' World pop data obtained for 2015, to fill in missing data before 2016.
+#'
+#' @param world_pop_file_path `str` Path to the world pop file path.
+#' @param edav `logical` Whether to use EDAV or not to load the file.
+#'
+#' @returns `tibble` 2015 World Pop data.
+#' @export
+#'
+load_world_pop_patch <- function(world_pop_file_path = "GID/PEB/SIR/Data/pop/pop raw/csv files/adm2_2015_pop.csv",
+                                 edav = TRUE) {
+  pop15 <- sirfunctions::sirfunctions_io(io = "read", NULL, file_loc = world_pop_file_path, edav = edav) |>
+    dplyr::rename(
+      Under15Pop = all_0014,
+      Under5Pop = all_0004,
+      adm1guid = ADM1_GUID,
+      adm2guid = GUID,
+      Admin0Name = ADM0_NAME,
+      Admin1Name = ADM1_NAME, Admin2Name = ADM2_NAME) |>
+    dplyr::mutate(year = 2015, datasource = "WORLDPOP",
+                  Admin0Name = ifelse(stringr::str_detect(Admin0Name, "IVOIRE"), "COTE D IVOIRE", Admin0Name),
+                  Admin1Name = dplyr::case_when(
+                    Admin0Name == "TIMOR-LESTE" & adm1guid == "{A1F50BC9-EC0A-4979-845C-98DF1A352AEF}" ~ "LIQUIÇÁ",
+                    Admin0Name == "COOK ISLANDS" & adm1guid == "{3313FFF5-9113-49D3-AC57-473B9F28FDE8}" ~ "MANUAE AND TEAUOTU",
+                    Admin0Name == "GUAM" & adm1guid == "{9CF7AE57-7FD9-4B44-B15A-4D9873AF509F}"~ "HAGATÑA",
+                    Admin0Name == "KIRIBATI" & adm1guid == "{8EF854F2-CEBF-494A-B447-B2EC11450B96}" ~ "TABITEUEA NORTH",
+                    Admin0Name == "KIRIBATI" & adm1guid == "{0977BB72-8A91-403F-A4F6-27C910DF1168}" ~ "TABITEUEA SOUTH",
+                    Admin0Name == "COMOROS" & adm1guid == "{B940CAF0-1C95-409D-A39D-1AEDC153B17B}" ~ "NJAZÍDJA",
+                    Admin0Name == "MAURITIUS" & adm1guid == "{3A214917-2F6F-4181-9DE1-B2C8A8842FE3}" ~ "RIVIERE DU REMPART",
+                    Admin0Name == "SAO TOME AND PRINCIPE" & adm1guid == "{63B0EAFE-817E-43A0-97A8-6163F6FED504}" ~ "SAO_TOME",
+                    Admin0Name == "SAO TOME AND PRINCIPE" & adm1guid == "{504267D4-D657-4AC7-B680-36364E09DEDD}" ~ "PRINCIPE",
+                    .default = Admin1Name),
+                  Admin2Name = dplyr::case_when(
+                    Admin0Name == "TIMOR-LESTE" & adm2guid == "{5E239A7A-0101-47B5-A890-C8E6368D6D93}" ~ "LIQUIÇÁ",
+                    Admin0Name == "COOK ISLANDS" & adm2guid == "{C44D12CA-0BBB-4230-A4A0-169136005BDD}" ~ "MANUAE AND TEAUOTU",
+                    Admin0Name == "GUAM" & adm2guid == "{26D9B778-BCF2-4943-A8C0-5BFDE1068EFD}" ~ "HAGATÑA",
+                    Admin0Name == "KIRIBATI" & adm2guid == "{EEC7BF01-1431-4C3B-B110-542F5A20271F}" ~ "TABITEUEA NORTH",
+                    Admin0Name == "KIRIBATI" & adm2guid == "{BD995045-5442-4CE6-8D9F-D2343AB8FC01}" ~ "TABITEUEA SOUTH",
+                    Admin0Name == "COMOROS" & adm2guid == "{4019BF0F-2C8A-4ED7-90ED-3D31BA03C55B}" ~ "NJAZÍDJA",
+                    Admin0Name == "MAURITIUS" & adm2guid == "{B9E68FEE-6B19-4806-AB7C-89432B4E0744}" ~ "RIVIERE_DU_REMPART",
+                    .default = Admin2Name)
+                  ) |>
+    dplyr::mutate(Admin1Name = gsub(" ", "_", Admin1Name),
+                  Admin1Name = gsub("-", "_", Admin1Name),
+                  Total = NA_real_) |>
+    dplyr::select(Admin0Name, Admin1Name, Admin2Name, year, Under15Pop, Under5Pop, Total, datasource, adm2guid)
+}
+
 #' Combine all district patch sources
 #'
 #' @inheritParams load_pakistan_patch
 #' @inheritParams load_somalia_patch
 #' @inheritParams load_kenya_patch
 #' @inheritParams load_jamal_pop
+#' @inheritParams load_world_pop_patch
 #'
 #' @return `tibble` Dataset with all the patch files.
 #'
@@ -246,14 +299,16 @@ load_all_patches <- function(pakistan_file_path = "GID/PEB/SIR/Data/pop/pop raw/
                              somalia_2024_file_path = "GID/PEB/SIR/Data/pop/pop raw/csv files/AFPPOP_24.csv",
                              kenya_file_path = "GID/PEB/SIR/Data/pop/pop raw/csv files/Kenya_SubCounty_pop_2018.csv",
                              jamal_pop_file_path = "GID/PEB/SIR/Data/pop/pop raw/csv files/POPU15.csv",
+                             world_pop_file_path = "GID/PEB/SIR/Data/pop/pop raw/csv files/adm2_2015_pop.csv",
                              edav = TRUE) {
 
   pak_patch <- load_pakistan_patch(pakistan_file_path, edav)
   som_patch <- load_somalia_patch(somalia_2022_file_path, somalia_2023_file_path, somalia_2024_file_path, edav)
   ken_patch <- load_kenya_patch(kenya_file_path, edav)
   jamal_pop <- load_jamal_pop(jamal_pop_file_path, edav)
+  wolrd_pop <- load_world_pop_patch(world_pop_file_path, edav)
 
-  return(dplyr::bind_rows(pak_patch, som_patch, ken_patch, jamal_pop))
+  return(dplyr::bind_rows(pak_patch, som_patch, ken_patch, jamal_pop, world_pop))
 }
 
 #' Load population growth rates
@@ -868,7 +923,7 @@ process_dist_pop_data <- function(pop_data,
   sirfunctions::sirfunctions_io("write", NULL, file_loc = file.path(pop_dir,
                                                                     "pop_diagnostics",
                                                                     paste0(Sys.Date(),
-                                                                           "_prop_dist_pop_missing_by_ctry_year.parquet")),
+                                                                           "_prop_dist_pop_missing_by_ctry_year.csv")),
                                 obj = prop_missingness_by_ctry_year,
                                 edav = edav)
 

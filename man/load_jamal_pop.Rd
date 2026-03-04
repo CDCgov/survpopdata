@@ -11,9 +11,11 @@ load_jamal_pop(
 }
 \arguments{
 \item{jamal_pop_file_path}{Path to Jamal file.}
+
+\item{edav}{\code{logical} Whether to use EDAV or not to load the file.}
 }
 \value{
-Tibble with Admin names, year, age columns, datasource.
+\code{tibble} Population data with Admin names, year, age columns, datasource.
 }
 \description{
 Load Jamal district under-15 population
