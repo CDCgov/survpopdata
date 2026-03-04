@@ -18,7 +18,7 @@ process_dist_pop_data(
   kenya_file_path = file.path(pop_dir, "pop raw/csv files/Kenya_SubCounty_pop_2018.csv"),
   jamal_pop_file_path = file.path(pop_dir, "pop raw/csv files/POPU15.csv"),
   output_dir = file.path(pop_dir, "processed_pop_file"),
-  output_type = "rds",
+  output_type = "parquet",
   edav = TRUE
 )
 }

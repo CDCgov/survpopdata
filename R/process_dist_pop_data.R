@@ -96,7 +96,7 @@ load_somalia_patch <- function(
         DISTRICT == "HAMAR WEYN" ~ "HAMARWEYNE",
         TRUE ~ DISTRICT
       ),
-      Total = as.numeric(gsub(",", "", Total))
+      Under15Pop = as.numeric(gsub(",", "", Total))
     )
 
   somalia_formatted <- somalia_patches |>
@@ -105,12 +105,12 @@ load_somalia_patch <- function(
       Admin1Name = PROVINCE,
       Admin2Name = DISTRICT,
       year,
-      Total,
+      Under15Pop,
       datasource
     ) |>
     dplyr::mutate(year = as.numeric(year),
                   Under5Pop  = NA_real_,
-                  Under15Pop = NA_real_)
+                  Total = NA_real_)
 
   return(somalia_formatted)
 
@@ -183,6 +183,11 @@ load_jamal_pop <- function(
   jamal_pop <- sirfunctions::sirfunctions_io("read", NULL, jamal_pop_file_path,
                                              edav = edav)
 
+  # Dedup
+  jamal_pop <- jamal_pop |>
+    dplyr::mutate(dplyr::across(dplyr::everything(), \(x) stringr::str_to_upper(x))) |>
+    dplyr::distinct()
+
   jamal_pop_formatted <- jamal_pop |>
     # Some of the PlaceIds already have the curly braces
     dplyr::mutate(PlaceId = stringr::str_replace_all(PlaceId, "\\{", ""),
@@ -204,16 +209,23 @@ load_jamal_pop <- function(
     dplyr::mutate(Under5Pop = NA_real_,
                   Total = NA_real_,
                   year = as.integer(year),
-                  datasource = "JAMAL POP")
+                  Under15Pop = as.numeric(Under15Pop),
+                  datasource = "JAMAL_POP")
 
   jamal_pop_formatted <- jamal_pop_formatted |>
     # Remove invalid ADM2GUIDs from Jamal Pop
     # {C7B58BAE-7125-41F8-8A19-E8F4378DCCE5} North Gondar was only active in 2020 based on district shapefile, so remove for 2019, 2021, 2022
     # {2BA264D0-ABCA-4EC5-89F0-794744688AF1} North Gondar was only active in 2021 based on district shapefile, so remove for 2019, 2020
     # {A56970BF-2D44-4FD6-A3D4-6B351339B4AB} BENCH MAJI was only active in 2019, 2020 based on district shapefile, so remove for 2021 and 2022
-    dplyr::filter(!(adm2guid == "{A56970BF-2D44-4FD6-A3D4-6B351339B4AB}" & datasource == "JAMAL POP" & year %in% c(2021, 2022)),
-                  !(adm2guid == "{2BA264D0-ABCA-4EC5-89F0-794744688AF1}" & datasource == "JAMAL POP" & year %in% c(2019, 2020)),
-                  !(adm2guid == "{C7B58BAE-7125-41F8-8A19-E8F4378DCCE5}" & datasource == "JAMAL POP" & year %in% c(2019, 2021, 2022)))
+    dplyr::filter(!(adm2guid == "{A56970BF-2D44-4FD6-A3D4-6B351339B4AB}" & year %in% c(2018, 2021, 2022)),
+                  !(adm2guid == "{2BA264D0-ABCA-4EC5-89F0-794744688AF1}" & year %in% c(2018, 2019, 2020)),
+                  !(adm2guid == "{C7B58BAE-7125-41F8-8A19-E8F4378DCCE5}" & year %in% c(2018, 2019, 2021, 2022))) |>
+    # Filter out duplicated GUIDs that have incorrect counts
+    # Keep the u15pops that closely matches the pop counts in the POLIS API pop dataset
+    dplyr::filter(
+      !(adm2guid == "{2BA264D0-ABCA-4EC5-89F0-794744688AF1}" & Under15Pop < 300000),
+      !(adm2guid == "{A56970BF-2D44-4FD6-A3D4-6B351339B4AB}" & Under15Pop >= 410000)
+    )
 
   return(jamal_pop_formatted)
 }
@@ -338,7 +350,6 @@ join_pop_to_district_year_shapes <- function(pop_named, district_long) {
 #' @export
 remove_forward_fill_non_polis <- function(non_polis_pop) {
   non_polis_pop |>
-    dplyr::filter(datasource != "POLIS") |>
     dplyr::arrange(GUID, datasource, active.year.01) |>
     dplyr::group_by(GUID, datasource) |>
     dplyr::mutate(
@@ -408,10 +419,11 @@ apply_growth_rate <- function(base_data, pop_column) {
                                 })) |>
     tidyr::fill(anchor_year, anchor_value, .direction = "downup") |>
     dplyr::ungroup() |>
-    dplyr::mutate(growth_factor_applied = dplyr::if_else(year != anchor_year, TRUE, FALSE))
+    dplyr::mutate(growth_factor_applied = dplyr::if_else(year != anchor_year, TRUE, FALSE)) |>
+    tidyr::replace_na(list(growth_factor_applied = FALSE))
 
   base_data_formatted <- base_data_formatted |>
-    dplyr::rename_with(recode,
+    dplyr::rename_with(dplyr::recode,
                        growth_factor_applied = paste0("used_growth_", pop_column))
 
   # forward fill
@@ -434,7 +446,7 @@ apply_growth_rate <- function(base_data, pop_column) {
 
   # no fill
   no_fill <- base_data_formatted |>
-    filter((year == anchor_year | is.na(anchor_year)))
+    dplyr::filter((year == anchor_year | is.na(anchor_year)))
 
   # combine
   base_data_growth_rate_filled <- dplyr::bind_rows(forward_fill, backward_fill, no_fill)
@@ -447,6 +459,44 @@ apply_growth_rate <- function(base_data, pop_column) {
 
   return(base_data_growth_rate_filled)
 
+}
+
+#' Patch missing data in POLIS pop with non-polis data
+#'
+#' @param polis_pop `tibble` Population data from POLIS API.
+#' @param non_polis_pop `tibble` Population data fron non-POLIS API sources.
+#' @param patch_file `str` Name of the patch file datasource. Valid values include:
+#' "JAMAL POP", "PATCH_PAKISTAN", "KENYA 2018 PATCH", "PATCH_SOMALIA".
+#'
+#' @returns `tibble` Population data patched.
+#' @keywords internal
+#'
+patch_polis_with_non_polis_pop <- function(polis_pop, non_polis_pop, patch_file) {
+
+  if (!patch_file %in% c("JAMAL_POP", "PATCH_PAKISTAN", "KENYA 2018 PATCH", "PATCH_SOMALIA")) {
+    cli::cli_abort("Invalid patch file datasource.")
+  }
+
+  combined_pop <- dplyr::left_join(polis_pop,
+                                   non_polis_pop |>
+                                     dplyr::filter(datasource == patch_file) |>
+                                     dplyr::rename(patch_u15pop = "0-15Y",
+                                                   patch_u5pop = "0-5Y",
+                                                   patch_totpop = "ALL") |>
+                                     dplyr::select(-datasource)) |>
+    dplyr::mutate(datasource = dplyr::case_when(
+      !is.na(patch_u15pop) & is.na(`0-15Y`) ~ patch_file,
+      !is.na(patch_u5pop) & is.na(`0-5Y`) ~ patch_file,
+      !is.na(patch_totpop) & is.na(ALL) ~ patch_file,
+      .default = datasource
+    )) |>
+    dplyr::mutate(ALL = dplyr::coalesce(ALL, patch_totpop),
+                  `0-5Y` = dplyr::coalesce(`0-5Y`, patch_u5pop),
+                  `0-15Y` = dplyr::coalesce(`0-15Y`, patch_u15pop)
+    ) |>
+    dplyr::select(-dplyr::starts_with("patch_"))
+
+  return(combined_pop)
 }
 
 # Public function ----
@@ -483,8 +533,11 @@ process_dist_pop_data <- function(pop_data,
                                   kenya_file_path = file.path(pop_dir, "pop raw/csv files/Kenya_SubCounty_pop_2018.csv"),
                                   jamal_pop_file_path = file.path(pop_dir, "pop raw/csv files/POPU15.csv"),
                                   output_dir = file.path(pop_dir, "processed_pop_file"),
-                                  output_type = "rds",
+                                  output_type = "parquet",
                                   edav = TRUE) {
+
+  # Remove period if passed in the output type
+  output_type <- stringr::str_replace(output_type, stringr::fixed("."), "")
 
   if (!output_type %in% c("rds", "csv", "parquet")) {
     cli::cli_abort("Please pass only 'rds', 'csv', or 'parquet' in output_type.")
@@ -494,6 +547,11 @@ process_dist_pop_data <- function(pop_data,
   pop_data <- crosswalk_pop_cols(pop_data)
   pop_data <- remove_forward_fill_polis_pop(pop_data)
 
+  # Alert to determine how much of the POLIS API are forward fills
+  pop_data_forward_fill_n <- sum(pop_data$is_forward_fill, na.rm = TRUE)
+  cli::cli_alert_info(paste0("There are ", pop_data_forward_fill_n, " (", round(pop_data_forward_fill_n / nrow(pop_data) * 100),   "%) records in the POLIS pop API ",
+                             "where populations were forward filled. These values were replaced with NAs as they don't account for growth rates."))
+
   # Input district-year shape table + country-level growth rates
   district_long <- sirfunctions::load_clean_dist_sp(fp = dist_file_path, type = "long", edav = edav)
   growth_rates <- load_growth_rates(growth_rate_file_path, edav = edav)
@@ -501,7 +559,8 @@ process_dist_pop_data <- function(pop_data,
   # Remove unnecessary columns from district_long and reduce file size (from 10GB to 115MB)
   district_long_subset <- district_long |>
     dplyr::tibble() |>
-    dplyr::select(WHO_REGION, dplyr::ends_with("_NAME"), dplyr::ends_with("_GUID"),
+    dplyr::select(#WHO_REGION, apparently missing in the new SF
+                  dplyr::ends_with("_NAME"), dplyr::ends_with("_GUID"),
                   yr.st, yr.end, active.year.01, GUID) |>
     dplyr::select(-dplyr::ends_with("VIZ_NAME"))
 
@@ -521,8 +580,23 @@ process_dist_pop_data <- function(pop_data,
       active.year.01 = year
     )
 
-  polis_pop <- dplyr::left_join(district_long_subset, polis_pop) |>
-    dplyr::distinct()
+  # Prefer adm0-1 guid and names from the shapefile
+  # Sometimes the province are not matched correctly between the POLIS API pop file and
+  # the shapefile :(
+  polis_pop <- dplyr::left_join(district_long_subset |>
+                                  dplyr::rename(sf_adm0_name = ADM0_NAME,
+                                                sf_adm1_name = ADM1_NAME,
+                                                sf_adm2_name = ADM2_NAME,
+                                                sf_adm0guid = ADM0_GUID,
+                                                sf_adm1guid = ADM1_GUID),
+                                polis_pop) |>
+    dplyr::distinct() |>
+    dplyr::mutate(ADM0_NAME = dplyr::coalesce(sf_adm0_name, ADM0_NAME),
+                  ADM1_NAME = dplyr::coalesce(sf_adm1_name, ADM1_NAME),
+                  ADM2_NAME = dplyr::coalesce(sf_adm2_name, ADM2_NAME),
+                  ADM0_GUID = dplyr::coalesce(sf_adm0guid, ADM0_GUID),
+                  ADM1_GUID = dplyr::coalesce(sf_adm1guid, ADM1_GUID)) |>
+    dplyr::select(-dplyr::starts_with("sf_"))
 
   # Input Non-POLIS data and removal of forward-filled repeats Values
   non_polis_pop <- load_all_patches(pakistan_file_path,
@@ -542,29 +616,72 @@ process_dist_pop_data <- function(pop_data,
                   ADM1_NAME = Admin1Name,
                   ADM2_NAME = Admin2Name,
                   active.year.01 = year,
-                  GUID = adm2guid)
+                  GUID = adm2guid) |>
+    dplyr::distinct()
 
- # Fill GUIDs based on names
-  non_polis_pop <- dplyr::left_join(district_long_subset |>
-                                      dplyr::rename(sf_guid = "GUID"),
-                                    non_polis_pop) |>
-    dplyr::mutate(GUID = dplyr::coalesce(GUID, sf_guid)) |>
-    dplyr::select(-sf_guid) |>
+  # Ensure the Jamal pops match the names with the GUIDs
+  non_polis_jamal <- non_polis_pop |>
+    dplyr::filter(datasource == "JAMAL_POP") |>
+    dplyr::right_join(district_long_subset |>
+                        dplyr::rename(sf_adm0_name = ADM0_NAME,
+                                      sf_adm1_name = ADM1_NAME,
+                                      sf_adm2_name = ADM2_NAME)) |>
+    dplyr::distinct() |>
+    dplyr::mutate(ADM0_NAME = dplyr::coalesce(sf_adm0_name, ADM0_NAME),
+                  ADM1_NAME = dplyr::coalesce(sf_adm1_name, ADM1_NAME)) |>
+    dplyr::select(-dplyr::starts_with("sf_"))
+
+  # Fill GUIDs based on names for the Pakistan, Somalia, and Kenya patch since
+  # There don't have GUIDs
+  non_polis_pop_non_jamal <- dplyr::left_join(district_long_subset,
+                                    non_polis_pop |>
+                                      dplyr::filter(datasource != "JAMAL_POP") |>
+                                      dplyr::select(-GUID))
+
+  non_polis_pop_combined <- dplyr::bind_rows(non_polis_pop_non_jamal, non_polis_jamal) |>
+    dplyr::filter(!is.na(datasource))
+
+  non_polis_pop_combined <- non_polis_pop_combined |>
     remove_forward_fill_non_polis() |>
     dplyr::rename(`0-5Y` = Under5Pop,
                   `0-15Y` = Under15Pop,
                   ALL = Total)
 
-  # Combine POLIS + Non-POLIS data
-  combined_pop <- dplyr::bind_rows(polis_pop, non_polis_pop) |>
+  # Fill using the following step:
+  # PAK and SOM Patch > KENYA Patch > Jamal Pop Patch
+  u15_missingness_before <- sum(is.na(polis_pop$`0-15Y`))
+  cli::cli_alert_info(paste0(round(u15_missingness),
+                             " adm2guid-year combination missing populations in POLIS API (forward-fills removed)."))
+  combined_pop <- patch_polis_with_non_polis_pop(polis_pop, non_polis_pop_combined, "PATCH_PAKISTAN")
+  u15_missingness <- sum(is.na(combined_pop$`0-15Y`))
+  cli::cli_alert_info(paste0(round(u15_missingness),
+                             " adm2guid-year combination missing populations after patching with PATCH_PAKISTAN."))
+  for (i in c("PATCH_SOMALIA", "KENYA 2018 PATCH", "JAMAL_POP")) {
+    combined_pop <- patch_polis_with_non_polis_pop(combined_pop, non_polis_pop_combined, i)
+    u15_missingness <- sum(is.na(combined_pop$`0-15Y`))
+    cli::cli_alert_info(paste0(round(u15_missingness),
+                               " adm2guid-year combination missing populations after patching with ",
+                               i, "."))
+  }
+
+  cli::cli_alert_info(paste0("Number of records filled using patches: ", u15_missingness_before - u15_missingness))
+
+  if (nrow(combined_pop) != nrow(polis_pop)) {
+    cli::cli_alert_warning("combined_pop != polis_pop counts. Please check for a many-to-many join!!!")
+  } else {
+    cli::cli_alert_success("No new or lost records added after implementing patches.")
+  }
+
+  # Change column order so it's neater to look at
+  combined_pop <- combined_pop |>
     dplyr::relocate(ADM1_GUID, .after = ADM0_GUID) |>
     dplyr::relocate(GUID, .after = ADM1_GUID) |>
-    deduplicate_population()
+    dplyr::distinct()
 
   # Check to make sure there are no duplicated guid - year populations
   combined_pop_dup <- combined_pop |>
     dplyr::group_by(GUID, active.year.01) |>
-    dplyr::summarize(n = n()) |>
+    dplyr::summarize(n = dplyr::n()) |>
     dplyr::filter(n > 1)
 
   if (nrow(combined_pop_dup) != 0) {
@@ -613,12 +730,28 @@ process_dist_pop_data <- function(pop_data,
     dplyr::ungroup()
 
   # Output
+  cli::cli_process_start("Applying growth rate to fill missing populations.")
   result <- base_data |>
     apply_growth_rate("ALL") |>
     apply_growth_rate("0-15Y") |>
     apply_growth_rate("0-5Y")
+  cli::cli_process_done()
 
-  # USE GROWTH RATE using district names
+  # Compare missingness after growth rate added to population data
+  cli::cli_alert_info(paste0(sum(is.na(base_data$`0-15Y`)) - sum(is.na(result$`0-15Y`)),
+                             " additional records filled using growth rates."))
+
+
+  # Add WHO region to results because the new SF doesn't have that column
+  result <- dplyr::left_join(result |>
+                                    dplyr::select(-WHO_REGION),
+                             polis_pop |>
+                               dplyr::group_by(ADM0_NAME) |>
+                               dplyr::filter(!is.na(`0-15Y`)) |>
+                               dplyr::filter(active.year.01 == max(active.year.01)) |>
+                               dplyr::select(ADM0_NAME, WHO_REGION) |>
+                               dplyr::distinct() |>
+                               dplyr::ungroup())
 
   formatted_result <- result |>
     dplyr::select(-FK_DataSetId, -ISO_3_CODE) |>
@@ -642,7 +775,7 @@ process_dist_pop_data <- function(pop_data,
       used_growth_rate_u5 = "used_growth_0-5Y",
       used_growth_rate_u15 = "used_growth_0-15Y"
     ) |>
-    dplyr::relocate(ctry, prov,dist, .after = who.region) |>
+    dplyr::relocate(who.region, ctry, prov, dist, adm0guid, adm1guid, adm2guid, .after = year) |>
     dplyr::mutate(
       used.growth.rate = dplyr::case_when(
         used_growth_rate_tot & used_growth_rate_u5 & used_growth_rate_u15 ~ "u5, u15, tot",
@@ -672,7 +805,23 @@ process_dist_pop_data <- function(pop_data,
                                    ordered = TRUE)) |>
     dplyr::select(-dplyr::contains("used_growth_rate_"))
 
-  if (!is.null(output_file)){
+  # Check if there are GUIDs in the Shapefile that are not in the pop file
+  not_in_sf <- setdiff(district_long_subset$GUID, formatted_result$adm2guid)
+
+  if (length(not_in_sf) != 0) {
+    cli::cli_alert_warning("There are GUIDs in the shapefile that's not in the population file.")
+    sirfunctions::sirfunctions_io("write", NULL, file_loc = file.path(pop_dir,
+                                                                      "errors",
+                                                                      paste0(Sys.Date(),
+                                                                             "_guids_in_sf_not_in_pop.parquet")),
+                                  obj = dplyr::tibble(GUID = not_in_sf),
+                                  edav = edav)
+  } else {
+    cli::cli_alert_success("All GUIDs in the shapefile are present in the population file.")
+  }
+
+
+  if (!is.null(output_dir)){
     sirfunctions::sirfunctions_io("write", NULL, file_loc = file.path(output_dir, "global.dist.", output_type),
                                   obj = formatted_result,
                                   edav = edav)
