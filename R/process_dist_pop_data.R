@@ -842,7 +842,22 @@ process_dist_pop_data <- function(pop_data,
                                   edav = edav)
   }
 
-  cli::cli_alert_success("Processing district population file complete.")
+  # Perform diagnostic checks
+  prop_missingness_by_ctry_year <- formatted_result |>
+    dplyr::group_by(who.region , ctry, year) |>
+    dplyr::summarize(missing_u15 = sum(is.na(u15pop)),
+                     missing_u5 = sum(is.na(u5pop)),
+                     missing_tot = sum(is.na(totpop)),
+                     total_districts = dplyr::n(),
+                     missing_u15_pct = round(missing_u15 / total_districts * 100, 2)) |>
+    dplyr::arrange(who.region, dplyr::desc(year), dplyr::desc(missing_u15_pct))
+
+  sirfunctions::sirfunctions_io("write", NULL, file_loc = file.path(pop_dir,
+                                                                    "pop_diagnostics",
+                                                                    paste0(Sys.Date(),
+                                                                           "_prop_dist_pop_missing_by_ctry_year.parquet")),
+                                obj = prop_missingness_by_ctry_year,
+                                edav = edav)
 
   invisible(formatted_result)
 
