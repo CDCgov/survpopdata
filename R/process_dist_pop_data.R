@@ -162,7 +162,7 @@ load_kenya_patch <- function(
       ),
       Admin0Name = "KENYA",
       year = 2018,
-      datasource = "KENYA 2018 PATCH",
+      datasource = "KENYA_2018_PATCH",
       Under5Pop = NA_real_,
       Total = NA_real_
     ) |>
@@ -253,7 +253,7 @@ load_world_pop_patch <- function(world_pop_file_path = "GID/PEB/SIR/Data/pop/pop
       adm2guid = GUID,
       Admin0Name = ADM0_NAME,
       Admin1Name = ADM1_NAME, Admin2Name = ADM2_NAME) |>
-    dplyr::mutate(year = 2015, datasource = "WORLDPOP",
+    dplyr::mutate(year = 2015, datasource = "WORLD_POP",
                   Admin0Name = ifelse(stringr::str_detect(Admin0Name, "IVOIRE"), "COTE D IVOIRE", Admin0Name),
                   Admin1Name = dplyr::case_when(
                     Admin0Name == "TIMOR-LESTE" & adm1guid == "{A1F50BC9-EC0A-4979-845C-98DF1A352AEF}" ~ "LIQUIÇÁ",
@@ -726,7 +726,7 @@ process_dist_pop_data <- function(pop_data,
   u15_missingness <- sum(is.na(combined_pop$`0-15Y`))
   cli::cli_alert_info(paste0(round(u15_missingness),
                              " adm2guid-year combination missing populations after patching with PATCH_PAKISTAN."))
-  for (i in c("PATCH_SOMALIA", "KENYA 2018 PATCH", "JAMAL_POP")) {
+  for (i in c("PATCH_SOMALIA", "KENYA_2018_PATCH", "JAMAL_POP", "WORLD_POP")) {
     combined_pop <- patch_polis_with_non_polis_pop(combined_pop, non_polis_pop_combined, i)
     u15_missingness <- sum(is.na(combined_pop$`0-15Y`))
     cli::cli_alert_info(paste0(round(u15_missingness),
