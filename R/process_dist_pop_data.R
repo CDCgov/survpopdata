@@ -665,7 +665,7 @@ process_dist_pop_data <- function(pop_data,
   # Fill using the following step:
   # PAK and SOM Patch > KENYA Patch > Jamal Pop Patch
   u15_missingness_before <- sum(is.na(polis_pop$`0-15Y`))
-  cli::cli_alert_info(paste0(round(u15_missingness),
+  cli::cli_alert_info(paste0(round(u15_missingness_before),
                              " adm2guid-year combination missing populations in POLIS API (forward-fills removed)."))
   combined_pop <- patch_polis_with_non_polis_pop(polis_pop, non_polis_pop_combined, "PATCH_PAKISTAN")
   u15_missingness <- sum(is.na(combined_pop$`0-15Y`))
@@ -837,7 +837,7 @@ process_dist_pop_data <- function(pop_data,
 
 
   if (!is.null(output_dir)){
-    sirfunctions::sirfunctions_io("write", NULL, file_loc = file.path(output_dir, "global.dist.", output_type),
+    sirfunctions::sirfunctions_io("write", NULL, file_loc = file.path(output_dir, paste0("global.dist.", output_type)),
                                   obj = formatted_result,
                                   edav = edav)
   }
