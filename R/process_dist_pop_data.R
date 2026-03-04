@@ -306,7 +306,7 @@ load_all_patches <- function(pakistan_file_path = "GID/PEB/SIR/Data/pop/pop raw/
   som_patch <- load_somalia_patch(somalia_2022_file_path, somalia_2023_file_path, somalia_2024_file_path, edav)
   ken_patch <- load_kenya_patch(kenya_file_path, edav)
   jamal_pop <- load_jamal_pop(jamal_pop_file_path, edav)
-  wolrd_pop <- load_world_pop_patch(world_pop_file_path, edav)
+  world_pop <- load_world_pop_patch(world_pop_file_path, edav)
 
   return(dplyr::bind_rows(pak_patch, som_patch, ken_patch, jamal_pop, world_pop))
 }
