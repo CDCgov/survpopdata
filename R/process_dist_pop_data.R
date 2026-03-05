@@ -440,44 +440,20 @@ remove_forward_fill_non_polis <- function(non_polis_pop) {
     dplyr::ungroup()
 }
 
-#' Deduplicate population rows by source priority (one row per GUID-year)
-#'
-#' @param pop_with_guid Tibble with ADM2_GUID, year, age columns, datasource.
-#'
-#' @return Deduplicated tibble (one row per ADM2_GUID-year).
-#'
-#' @export
-deduplicate_population <- function(pop_with_guid) {
-  pop_with_guid |>
-    dplyr::mutate(
-      source_rank = dplyr::case_when(
-        datasource == "POLIS API" ~ 3L,
-        grepl("^PATCH_", datasource) ~ 2L,
-        datasource == "KENYA 2018 PATCH" ~ 2L,
-        datasource == "JAMAL POP" ~ 1L,
-        TRUE ~ 99L
-      ),
-      has_any_value = !(is.na(ALL) & is.na(`0-15Y`) & is.na(`0-5Y`))
-    ) |>
-    dplyr::group_by(GUID, active.year.01) |>
-    dplyr::slice_max(source_rank) |>
-    dplyr::ungroup() |>
-    dplyr::select(-source_rank, -has_any_value)
-}
-
 #' Applies the growth rate to each population columns
 #'
 #' @param base_data `tibble` Combined population data with the growth rate columns.
 #' @param pop_column `str` Name of the population column to apply the growth rate to.
+#' @param grouping_col `str` Column to use for grouping.
 #'
 #' @returns `tibble` Population data with population filled based on growth rates
 #' @keywords internal
 #'
-apply_growth_rate <- function(base_data, pop_column) {
+apply_growth_rate <- function(base_data, pop_column, grouping_col = "ADM2_GUID") {
 
   # Create anchor year vars
   base_data_formatted <- base_data |>
-    dplyr::group_by(ADM2_GUID) |>
+    dplyr::group_by(!!dplyr::sym(grouping_col)) |>
     dplyr::arrange(year, .by_group = TRUE) |>
     dplyr::mutate(anchor_year = year,
                   anchor_value = !!dplyr::sym(pop_column)) |>
