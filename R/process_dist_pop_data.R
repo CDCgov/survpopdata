@@ -473,7 +473,7 @@ apply_growth_rate <- function(base_data, pop_column, grouping_col = "ADM2_GUID")
   # forward fill
   forward_fill <- base_data_formatted |>
     dplyr::filter(year > anchor_year) |>
-    dplyr::group_by(ADM2_GUID, anchor_year) |>
+    dplyr::group_by(!!dplyr::sym(grouping_col), anchor_year) |>
     dplyr::mutate(cp = cumprod((1+growth_rate)),
            computed_value = cp * anchor_value) |>
     dplyr::ungroup()
@@ -482,7 +482,7 @@ apply_growth_rate <- function(base_data, pop_column, grouping_col = "ADM2_GUID")
   backward_fill <- base_data_formatted |>
     dplyr::filter(year < anchor_year) |>
     dplyr::arrange(dplyr::desc(year)) |>
-    dplyr::group_by(ADM2_GUID, anchor_year) |>
+    dplyr::group_by(!!dplyr::sym(grouping_col), anchor_year) |>
     dplyr::mutate(cp = cumprod((1+growth_rate)),
            computed_value = anchor_value / cp,
            growth_rate) |>
@@ -866,11 +866,11 @@ process_dist_pop_data <- function(pop_data,
     sirfunctions::sirfunctions_io("write", NULL, file_loc = file.path(pop_dir,
                                                                       "errors",
                                                                       paste0(Sys.Date(),
-                                                                             "_guids_in_sf_not_in_pop.parquet")),
+                                                                             "_guids_in_dist_sf_not_in_dist_pop.parquet")),
                                   obj = dplyr::tibble(GUID = not_in_sf),
                                   edav = edav)
   } else {
-    cli::cli_alert_success("All GUIDs in the shapefile are present in the population file.")
+    cli::cli_alert_success("All GUIDs in the district shapefile are present in the district population file.")
   }
 
 

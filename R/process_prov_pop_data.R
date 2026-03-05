@@ -1,5 +1,32 @@
 # Private functions ----
 
+#' Calculate province level population using district pop rollups
+#'
+#' @param dist_pop_file_path `str` Path to the district pop file.
+#' @param edav `logical` If the file is in EDAV. Defaults to `TRUE`.
+#'
+#' @returns
+#' @export
+#'
+load_dist_pop_rollup <- function(dist_pop_file_path = file.path("GID/PEB/SIR/Data/pop",
+                                                                "processed_pop_file",
+                                                                "global.dist.parquet"),
+                                 edav = TRUE) {
+
+  # Load cleaned dist pop
+  processed_dist_pop <- sirfunctions::sirfunctions_io("read", NULL, dist_pop_file_path, edav = edav)
+
+  # Roll it up buttercup
+  dist_pop_rollup <- processed_dist_pop |>
+    dplyr::group_by(adm1guid, year) |>
+    dplyr::summarize(u15pop_rollup = sum(u15pop, na.rm = TRUE),
+                     u5pop_rollup = sum(u5pop, na.rm = TRUE),
+                     totpop_rollup = sum(totpop, na.rm = TRUE))
+
+  return(dist_pop_rollup)
+
+}
+
 load_indonesia_patch <- function(indonesia_file_path = "GID/PEB/SIR/Data/pop/pop raw/csv files/Papua Population u15 2023.csv", edav = TRUE) {
   sirfunctions::sirfunctions_io(io = "read", NULL, file_loc = indonesia_file_path, edav = edav) |>
     dplyr::mutate(active.year.01 = 2023,
@@ -91,6 +118,9 @@ process_prov_pop_data <- function(pop_data,
   pop_data <- crosswalk_pop_cols(pop_data)
   pop_data <- remove_forward_fill_polis_pop(pop_data)
 
+  # Load the district roll-up dataset
+  dist_pop_rollup <- load_dist_pop_rollup(dist_pop_file_path, edav)
+
   # Alert to determine how much of the POLIS API are forward fills
   pop_data_forward_fill_n <- sum(pop_data$is_forward_fill, na.rm = TRUE)
   cli::cli_alert_info(paste0("There are ", pop_data_forward_fill_n, " (", round(pop_data_forward_fill_n / nrow(pop_data) * 100),   "%) records in the POLIS pop API ",
@@ -174,42 +204,161 @@ process_prov_pop_data <- function(pop_data,
     dplyr::ungroup()
 
   # Apply growth rates
-  # Output
   cli::cli_process_start("Applying growth rate to fill missing populations.")
   result <- base_data |>
     apply_growth_rate("ALL", grouping_col = "ADM1_GUID") |>
     apply_growth_rate("0-15Y", grouping_col = "ADM1_GUID") |>
-    apply_growth_rate("0-5Y", grouping_col = "ADM2_GUID")
+    apply_growth_rate("0-5Y", grouping_col = "ADM1_GUID")
   cli::cli_process_done()
 
-  # Output
-  result <- base_data |>
-    apply_growth_rate("Under5Pop") |>
-    apply_growth_rate("Under15Pop") |>
-    apply_growth_rate("Total") |>
-    aggregate_districts_to_province() |>
-    dplyr::mutate(
-      Used_Growth_Rate = ifelse(
-        used_growth_Under5Pop | used_growth_Under15Pop | used_growth_Total,
-        "Yes", "No"
-      ),
-      Used_District_Aggregation = ifelse(
-        used_aggregate_Total | used_aggregate_Under5Pop | used_aggregate_Under15Pop,
-        "Yes", ""
-      ),
-      GUID = ADM1_GUID
-    ) |>
-    dplyr::rename(
-      Country_Name  = ADM0_NAME,
-      Province_Name = ADM1_NAME,
-      SOURCE        = datasource
-    ) |>
-    dplyr::select(
-      -used_growth_Under5Pop, -used_growth_Under15Pop, -used_growth_Total,
-      -used_aggregate_Total, -used_aggregate_Under5Pop, -used_aggregate_Under15Pop,
-      -active.year.01, -datasource
-    )
+  polis_pop_u15_na_n <- sum(is.na(polis_pop$`0-15Y`))
+  growth_rate_added_na_n <- sum(is.na(result$`0-15Y`))
 
-  if (!is.null(output_file)) readr::write_rds(result, output_file)
-  result
+  cli::cli_alert_info(paste0("Growth rate filled in additional ",
+                             polis_pop_u15_na_n - growth_rate_added_na_n,
+                             " province u15 population."))
+
+
+  # Using population roll-ups to fill in the rest
+  result <- dplyr::left_join(result,
+                                  dist_pop_rollup |>
+                                    dplyr::rename(ADM1_GUID = adm1guid)) |>
+    dplyr::mutate(dplyr::across(c("u15pop_rollup", "u5pop_rollup", "totpop_rollup"),
+                                \(x) ifelse(x == 0, NA, x))) |>
+    dplyr::mutate(datasource = dplyr::case_when(
+      is.na(`0-15Y`) & !is.na(u15pop_rollup) ~ "DISTRICT ROLLUP",
+      is.na(`0-5Y`) & !is.na(u5pop_rollup) ~ "DISTRICT ROLLUP",
+      is.na(ALL) & !is.na(totpop_rollup) ~ "DISTRICT ROLLUP",
+      .default = datasource
+    )) |>
+    dplyr::mutate(`0-15Y` = dplyr::coalesce(`0-15Y`, u15pop_rollup),
+                  `0-5Y` = dplyr::coalesce(`0-5Y`, u5pop_rollup),
+                  ALL = dplyr::coalesce(ALL, totpop_rollup)) |>
+    dplyr::select(-dplyr::ends_with("_rollup"))
+
+  # Get how many records filled
+  dist_rollup_added_na_n <- sum(is.na(result$`0-15Y`))
+  cli::cli_alert_info(paste0("Population roll-up filled in additional ",
+                             growth_rate_added_na_n - dist_rollup_added_na_n,
+                             " province u15 population."))
+
+  # Add WHO region to results because the new SF doesn't have that column
+  result <- dplyr::left_join(result |>
+                               dplyr::select(-WHO_REGION),
+                             polis_pop |>
+                               dplyr::group_by(ADM0_NAME) |>
+                               dplyr::filter(!is.na(`0-15Y`)) |>
+                               dplyr::filter(active.year.01 == max(active.year.01)) |>
+                               dplyr::select(ADM0_NAME, WHO_REGION) |>
+                               dplyr::distinct() |>
+                               dplyr::ungroup())
+
+  formatted_result <- result |>
+    dplyr::select(-ISO_3_CODE) |>
+    tidyr::replace_na(list(used_growth_ALL = FALSE,
+                           `used_growth_0-15Y` = FALSE,
+                           `used_growth_0-5Y` = FALSE,
+                           datasource = "POLIS API")) |>
+    dplyr::rename(
+      who.region = "WHO_REGION",
+      growth.rate = "growth_rate",
+      adm0guid = "ADM0_GUID",
+      adm1guid = "ADM1_GUID",
+      ctry = "ADM0_NAME",
+      prov = "ADM1_NAME",
+      u15pop = "0-15Y",
+      u5pop = "0-5Y",
+      totpop = "ALL",
+      used_growth_rate_tot = "used_growth_ALL",
+      used_growth_rate_u5 = "used_growth_0-5Y",
+      used_growth_rate_u15 = "used_growth_0-15Y"
+    ) |>
+    dplyr::relocate(who.region, ctry, prov, adm0guid, adm1guid, .after = year) |>
+    dplyr::mutate(
+      used.growth.rate = dplyr::case_when(
+        used_growth_rate_tot & used_growth_rate_u5 & used_growth_rate_u15 ~ "u5, u15, tot",
+        used_growth_rate_tot & used_growth_rate_u5 & !used_growth_rate_u15 ~ "u5, tot",
+        used_growth_rate_tot & !used_growth_rate_u5 & used_growth_rate_u15 ~ "u15, tot",
+        !used_growth_rate_tot & used_growth_rate_u5 & used_growth_rate_u15 ~ "u5, u15",
+        used_growth_rate_tot & !used_growth_rate_u5 & !used_growth_rate_u15 ~ "tot",
+        !used_growth_rate_tot & used_growth_rate_u5 & !used_growth_rate_u15 ~ "u5",
+        !used_growth_rate_tot & !used_growth_rate_u5 & used_growth_rate_u15 ~ "u15",
+        .default = "no"
+      ),
+      miss.u15 = dplyr::if_else(is.na(u15pop), TRUE, FALSE),
+      miss.totpop = dplyr::if_else(is.na(totpop), TRUE, FALSE),
+      # U15 population category
+      pop.cat = dplyr::case_when(
+        is.na(u15pop) == T | u15pop == 0 ~ "Missing",
+        dplyr::between(u15pop, 0, 99999) ~ "<100,000",
+        dplyr::between(u15pop, 100000, 249999) ~ "100,000-249,999",
+        dplyr::between(u15pop, 250000, 499999) ~ "250,000-499,999",
+        dplyr::between(u15pop, 500000, 999999) ~ "500,000-999,999",
+        u15pop >= 1000000 ~ ">=1,000,000")
+    ) |>
+    dplyr::mutate(pop.cat = factor(pop.cat,
+                                   levels = c("Missing",
+                                              "<100,000",
+                                              "100,000-249,999",
+                                              "250,000-499,999",
+                                              "500,000-999,999",
+                                              ">=1,000,000"),
+                                   ordered = TRUE)) |>
+    dplyr::select(-dplyr::contains("used_growth_rate_"))
+
+  # Check if there are GUIDs in the Shapefile that are not in the pop file
+  not_in_sf <- setdiff(province_long_subset$GUID, formatted_result$adm1guid)
+
+  if (length(not_in_sf) != 0) {
+    cli::cli_alert_warning("There are GUIDs in the shapefile that's not in the population file.")
+    sirfunctions::sirfunctions_io("write", NULL, file_loc = file.path(pop_dir,
+                                                                      "errors",
+                                                                      paste0(Sys.Date(),
+                                                                             "_guids_in_prov_sf_not_in_prov_pop.parquet")),
+                                  obj = dplyr::tibble(GUID = not_in_sf),
+                                  edav = edav)
+  } else {
+    cli::cli_alert_success("All GUIDs in the province shapefile are present in the province population file.")
+  }
+
+
+  if (!is.null(output_dir)){
+    sirfunctions::sirfunctions_io("write", NULL, file_loc = file.path(output_dir, paste0("global.prov.", output_type)),
+                                  obj = formatted_result,
+                                  edav = edav)
+  }
+
+  # Perform diagnostic checks
+  prop_missingness_by_ctry_year <- formatted_result |>
+    dplyr::group_by(who.region , ctry, year) |>
+    dplyr::summarize(missing_u15 = sum(is.na(u15pop)),
+                     missing_u5 = sum(is.na(u5pop)),
+                     missing_tot = sum(is.na(totpop)),
+                     total_provinces = dplyr::n(),
+                     missing_u15_pct = round(missing_u15 / total_provinces * 100, 2)) |>
+    dplyr::arrange(who.region, dplyr::desc(year), dplyr::desc(missing_u15_pct)) |>
+    dplyr::ungroup()
+
+  # Get max year where all district data are present
+  last_year_w_complete_data <- prop_missingness_by_ctry_year |>
+    dplyr::group_by(ctry) |>
+    dplyr::filter(missing_u15_pct == 0) |>
+    dplyr::summarize(last_year_with_complete_data = max(year)) |>
+    dplyr::ungroup()
+
+  # Join
+  prop_missingness_by_ctry_year <- dplyr::left_join(prop_missingness_by_ctry_year, last_year_w_complete_data) |>
+    dplyr::arrange(who.region, dplyr::desc(year), dplyr::desc(missing_u15_pct)) |>
+    dplyr::ungroup()
+
+  sirfunctions::sirfunctions_io("write", NULL, file_loc = file.path(pop_dir,
+                                                                    "pop_diagnostics",
+                                                                    paste0(Sys.Date(),
+                                                                           "_prop_prov_pop_missing_by_ctry_year.csv")),
+                                obj = prop_missingness_by_ctry_year,
+                                edav = edav)
+
+  cli::cli_alert_success("Province population created.")
+
+  invisible(result_formatted)
 }
