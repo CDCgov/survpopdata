@@ -5,7 +5,7 @@
 #' @param dist_pop_file_path `str` Path to the district pop file.
 #' @param edav `logical` If the file is in EDAV. Defaults to `TRUE`.
 #'
-#' @returns
+#' @returns `tibble` District population rollup.
 #' @export
 #'
 load_dist_pop_rollup <- function(dist_pop_file_path = file.path("GID/PEB/SIR/Data/pop",
@@ -27,6 +27,14 @@ load_dist_pop_rollup <- function(dist_pop_file_path = file.path("GID/PEB/SIR/Dat
 
 }
 
+#' Indonesia province patch
+#'
+#' @param indonesia_file_path `str` File path to the Indonesia patch for 2023.
+#' @param edav `logical` Whether the file is in EDAV.
+#'
+#' @returns `tibble` Indonesia patch
+#' @export
+#'
 load_indonesia_patch <- function(indonesia_file_path = "GID/PEB/SIR/Data/pop/pop raw/csv files/Papua Population u15 2023.csv", edav = TRUE) {
   sirfunctions::sirfunctions_io(io = "read", NULL, file_loc = indonesia_file_path, edav = edav) |>
     dplyr::mutate(active.year.01 = 2023,
@@ -89,11 +97,11 @@ aggregate_districts_to_province <- function(base_data) {
 #' @param dist_pop_file_path `str` File path to the cleaned district pop file.
 #' @param prov_file_path `str` File path to the global province shapefile.
 #' @param growth_rate_file_path `str` File path to the growth rate Excel file.
-#' @param output_file Optional .rds output path.
-#' @return Tibble with GUID + province-year rows and final output naming.
+#' @param output_dir `str` File path to the output directory.
+#' @param output_type `str` How the population file should be outputted.
 #'
+#' @returns `tibble` Tibble with GUID + province-year rows and final output naming.
 #' @export
-#'
 #' @examples
 #' \dontrun{
 #' prov_pop_data(pop_data, output_file = "Data/pop/prov_pop_admin1.rds")
@@ -323,7 +331,7 @@ process_prov_pop_data <- function(pop_data,
 
 
   if (!is.null(output_dir)){
-    sirfunctions::sirfunctions_io("write", NULL, file_loc = file.path(output_dir, paste0("global.prov.", output_type)),
+    sirfunctions::sirfunctions_io("write", NULL, file_loc = file.path(output_dir, paste0("prov.pop.long.", output_type)),
                                   obj = formatted_result,
                                   edav = edav)
   }

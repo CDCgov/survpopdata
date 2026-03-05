@@ -27,10 +27,12 @@ process_prov_pop_data(
 
 \item{growth_rate_file_path}{\code{str} File path to the growth rate Excel file.}
 
-\item{output_file}{Optional .rds output path.}
+\item{output_dir}{\code{str} File path to the output directory.}
+
+\item{output_type}{\code{str} How the population file should be outputted.}
 }
 \value{
-Tibble with GUID + province-year rows and final output naming.
+\code{tibble} Tibble with GUID + province-year rows and final output naming.
 }
 \description{
 Combines POLIS + patches + Jamal; joins to province-year shapes; deduplicates;

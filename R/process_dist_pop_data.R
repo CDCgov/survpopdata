@@ -560,7 +560,7 @@ patch_polis_with_non_polis_pop <- function(polis_pop, non_polis_pop, patch_file)
 #' @param output_dir `str` Where to output the cleaned district population dataset.
 #' @param output_type `str` Output types. Valid values are 'rds', 'csv', and 'parquet'. Default
 #' is `rds`.
-#' @return `tibble` Cleaned district population dataset.
+#' @returns `tibble` Cleaned district population dataset.
 #'
 #' @export
 #'
@@ -875,7 +875,7 @@ process_dist_pop_data <- function(pop_data,
 
 
   if (!is.null(output_dir)){
-    sirfunctions::sirfunctions_io("write", NULL, file_loc = file.path(output_dir, paste0("global.dist.", output_type)),
+    sirfunctions::sirfunctions_io("write", NULL, file_loc = file.path(output_dir, paste0("dist.pop.long.", output_type)),
                                   obj = formatted_result,
                                   edav = edav)
   }
