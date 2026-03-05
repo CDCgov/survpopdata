@@ -21,7 +21,7 @@ create_prov_pop_map <- function(prov_long, prov_pop,
                                           ctry = ADM0_NAME,
                                           prov = ADM1_NAME,
                                           adm0guid = ADM0_GUID,
-                                          adm1guid = ADM1_GUID,
+                                          adm1guid = GUID,
                                           year = active.year.01
                                         ),
                                       prov_pop)
@@ -39,7 +39,7 @@ create_prov_pop_map <- function(prov_long, prov_pop,
   # Map populations
   plot <- ggplot2::ggplot() +
     ggplot2::geom_sf(ggplot2::aes(fill = u15pop), data = combined_sf_pop) +
-    ggplot2::scale_fill_proviller(
+    ggplot2::scale_fill_distiller(
       palette = "YlOrRd",
       direction = "both",
       labels = scales::comma
