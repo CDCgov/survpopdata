@@ -42,7 +42,8 @@ load_polis_pop <- function(spatial_scale,
     "ctry" = dplyr::filter(polis_data, !is.na(Admin0GUID) & is.na(Admin1GUID) & is.na(Admin2GUID) & FK_DataSetId == 1) |>
       dplyr::select(-dplyr::any_of(c("Admin1GUID", "Admin1Name", "Admin1Id",
                                      "Admin2GUID", "Admin2Name", "Admin2Id"))),
-    "prov" = dplyr::filter(polis_data, !is.na(Admin0GUID) & !is.na(Admin1GUID) & is.na(Admin2GUID) & FK_DataSetId == 2),
+    "prov" = dplyr::filter(polis_data, !is.na(Admin0GUID) & !is.na(Admin1GUID) & is.na(Admin2GUID) & FK_DataSetId == 2) |>
+      dplyr::select(-dplyr::any_of(c("Admin2GUID", "Admin2Name", "Admin2Id"))),
     "dist" = dplyr::filter(polis_data, !is.na(Admin0GUID) & !is.na(Admin1GUID) & !is.na(Admin2GUID) & FK_DataSetId == 2)
   ) |>
     dplyr::mutate(datasource = "POLIS API")
