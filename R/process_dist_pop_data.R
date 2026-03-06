@@ -499,7 +499,7 @@ apply_growth_rate <- function(base_data, pop_column, grouping_col = "ADM2_GUID")
   # replace
   base_data_growth_rate_filled <- base_data_growth_rate_filled |>
     dplyr::mutate(dplyr::across(dplyr::any_of(pop_column), \(x) dplyr::if_else(is.na(x), computed_value, x))) |>
-    dplyr::select(-cp, -computed_value, -anchor_value) |>
+    dplyr::select(-cp, -computed_value, -anchor_value, -lag_gr) |>
     dplyr::rename_with(dplyr::recode,
                        anchor_year = paste0(pop_column,"_anchor_year")) |>
     dplyr::arrange(ADM0_NAME, year)
