@@ -70,7 +70,7 @@ map_pop_outlier <- function(pop_w_outlier_cat,
     ggplot2::scale_fill_manual(
       name = "Outlier category",
       values = c("normal (<3%)" = "#89CFF1",
-                 "high (3-4.9%)" = "#FFA630",
+                 "high (3-4.9%)" = "#fed81b",
                  "rare (5-6.9%)" = "darkorange",
                  "very rare (7-14.9%)" = "red",
                  "likely data error (>15%)" = "darkred",
