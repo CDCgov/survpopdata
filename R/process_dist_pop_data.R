@@ -440,44 +440,20 @@ remove_forward_fill_non_polis <- function(non_polis_pop) {
     dplyr::ungroup()
 }
 
-#' Deduplicate population rows by source priority (one row per GUID-year)
-#'
-#' @param pop_with_guid Tibble with ADM2_GUID, year, age columns, datasource.
-#'
-#' @return Deduplicated tibble (one row per ADM2_GUID-year).
-#'
-#' @export
-deduplicate_population <- function(pop_with_guid) {
-  pop_with_guid |>
-    dplyr::mutate(
-      source_rank = dplyr::case_when(
-        datasource == "POLIS API" ~ 3L,
-        grepl("^PATCH_", datasource) ~ 2L,
-        datasource == "KENYA 2018 PATCH" ~ 2L,
-        datasource == "JAMAL POP" ~ 1L,
-        TRUE ~ 99L
-      ),
-      has_any_value = !(is.na(ALL) & is.na(`0-15Y`) & is.na(`0-5Y`))
-    ) |>
-    dplyr::group_by(GUID, active.year.01) |>
-    dplyr::slice_max(source_rank) |>
-    dplyr::ungroup() |>
-    dplyr::select(-source_rank, -has_any_value)
-}
-
 #' Applies the growth rate to each population columns
 #'
 #' @param base_data `tibble` Combined population data with the growth rate columns.
 #' @param pop_column `str` Name of the population column to apply the growth rate to.
+#' @param grouping_col `str` Column to use for grouping.
 #'
 #' @returns `tibble` Population data with population filled based on growth rates
 #' @keywords internal
 #'
-apply_growth_rate <- function(base_data, pop_column) {
+apply_growth_rate <- function(base_data, pop_column, grouping_col = "ADM2_GUID") {
 
   # Create anchor year vars
   base_data_formatted <- base_data |>
-    dplyr::group_by(ADM2_GUID) |>
+    dplyr::group_by(!!dplyr::sym(grouping_col)) |>
     dplyr::arrange(year, .by_group = TRUE) |>
     dplyr::mutate(anchor_year = year,
                   anchor_value = !!dplyr::sym(pop_column)) |>
@@ -497,19 +473,20 @@ apply_growth_rate <- function(base_data, pop_column) {
   # forward fill
   forward_fill <- base_data_formatted |>
     dplyr::filter(year > anchor_year) |>
-    dplyr::group_by(ADM2_GUID, anchor_year) |>
+    dplyr::group_by(!!dplyr::sym(grouping_col), anchor_year) |>
     dplyr::mutate(cp = cumprod((1+growth_rate)),
            computed_value = cp * anchor_value) |>
     dplyr::ungroup()
 
   # backfill
   backward_fill <- base_data_formatted |>
-    dplyr::filter(year < anchor_year) |>
-    dplyr::arrange(dplyr::desc(year)) |>
-    dplyr::group_by(ADM2_GUID, anchor_year) |>
-    dplyr::mutate(cp = cumprod((1+growth_rate)),
-           computed_value = anchor_value / cp,
-           growth_rate) |>
+    dplyr::arrange(dplyr::desc(year), !!dplyr::sym(grouping_col), anchor_year) |>
+    dplyr::filter(year <= anchor_year) |>
+    dplyr::group_by(!!dplyr::sym(grouping_col), anchor_year) |>
+    dplyr::mutate(lag_gr = dplyr::lag(growth_rate)) |>
+    dplyr::filter(year != anchor_year) |> # remove anchor year values
+    dplyr::mutate(cp = cumprod((1+lag_gr)),
+           computed_value = anchor_value / cp) |>
     dplyr::ungroup()
 
   # no fill
@@ -522,7 +499,9 @@ apply_growth_rate <- function(base_data, pop_column) {
   # replace
   base_data_growth_rate_filled <- base_data_growth_rate_filled |>
     dplyr::mutate(dplyr::across(dplyr::any_of(pop_column), \(x) dplyr::if_else(is.na(x), computed_value, x))) |>
-    dplyr::select(-cp, -computed_value, -anchor_year, -anchor_value) |>
+    dplyr::select(-cp, -computed_value, -anchor_value, -lag_gr) |>
+    dplyr::rename_with(dplyr::recode,
+                       anchor_year = paste0(pop_column,"_anchor_year")) |>
     dplyr::arrange(ADM0_NAME, year)
 
   return(base_data_growth_rate_filled)
@@ -584,7 +563,7 @@ patch_polis_with_non_polis_pop <- function(polis_pop, non_polis_pop, patch_file)
 #' @param output_dir `str` Where to output the cleaned district population dataset.
 #' @param output_type `str` Output types. Valid values are 'rds', 'csv', and 'parquet'. Default
 #' is `rds`.
-#' @return `tibble` Cleaned district population dataset.
+#' @returns `tibble` Cleaned district population dataset.
 #'
 #' @export
 #'
@@ -890,16 +869,16 @@ process_dist_pop_data <- function(pop_data,
     sirfunctions::sirfunctions_io("write", NULL, file_loc = file.path(pop_dir,
                                                                       "errors",
                                                                       paste0(Sys.Date(),
-                                                                             "_guids_in_sf_not_in_pop.parquet")),
+                                                                             "_guids_in_dist_sf_not_in_dist_pop.parquet")),
                                   obj = dplyr::tibble(GUID = not_in_sf),
                                   edav = edav)
   } else {
-    cli::cli_alert_success("All GUIDs in the shapefile are present in the population file.")
+    cli::cli_alert_success("All GUIDs in the district shapefile are present in the district population file.")
   }
 
 
   if (!is.null(output_dir)){
-    sirfunctions::sirfunctions_io("write", NULL, file_loc = file.path(output_dir, paste0("global.dist.", output_type)),
+    sirfunctions::sirfunctions_io("write", NULL, file_loc = file.path(output_dir, paste0("dist.pop.long.", output_type)),
                                   obj = formatted_result,
                                   edav = edav)
   }
