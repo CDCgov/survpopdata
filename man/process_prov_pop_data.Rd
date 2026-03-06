@@ -7,7 +7,7 @@
 process_prov_pop_data(
   pop_data,
   pop_dir = "GID/PEB/SIR/Data/pop",
-  dist_pop_file_path = file.path(pop_dir, "processed_pop_file", "global.dist.parquet"),
+  dist_pop_file_path = file.path(pop_dir, "processed_pop_file", "dist.pop.long.parquet"),
   prov_file_path = "GID/PEB/SIR/Data/spatial/global.prov.rds",
   growth_rate_file_path = file.path(pop_dir,
     "pop raw/WPP2024_GEN_F01_DEMOGRAPHIC_INDICATORS_COMPACT.xlsx"),
@@ -30,6 +30,8 @@ process_prov_pop_data(
 \item{output_dir}{\code{str} File path to the output directory.}
 
 \item{output_type}{\code{str} How the population file should be outputted.}
+
+\item{edav}{\code{logical} Whether files are on EDAV. Defaults to \code{TRUE}.}
 }
 \value{
 \code{tibble} Tibble with GUID + province-year rows and final output naming.

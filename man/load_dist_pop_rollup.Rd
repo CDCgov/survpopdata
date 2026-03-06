@@ -6,7 +6,7 @@
 \usage{
 load_dist_pop_rollup(
   dist_pop_file_path = file.path("GID/PEB/SIR/Data/pop", "processed_pop_file",
-    "global.dist.parquet"),
+    "dist.pop.long.parquet"),
   edav = TRUE
 )
 }

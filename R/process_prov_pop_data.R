@@ -102,6 +102,7 @@ aggregate_districts_to_province <- function(base_data) {
 #' @param growth_rate_file_path `str` File path to the growth rate Excel file.
 #' @param output_dir `str` File path to the output directory.
 #' @param output_type `str` How the population file should be outputted.
+#' @param edav `logical` Whether files are on EDAV. Defaults to `TRUE`.
 #'
 #' @returns `tibble` Tibble with GUID + province-year rows and final output naming.
 #' @export
@@ -111,7 +112,7 @@ aggregate_districts_to_province <- function(base_data) {
 #' }
 process_prov_pop_data <- function(pop_data,
                                   pop_dir = "GID/PEB/SIR/Data/pop",
-                                  dist_pop_file_path = file.path(pop_dir, "processed_pop_file", "global.dist.parquet"),
+                                  dist_pop_file_path = file.path(pop_dir, "processed_pop_file", "dist.pop.long.parquet"),
                                   prov_file_path = "GID/PEB/SIR/Data/spatial/global.prov.rds",
                                   growth_rate_file_path = file.path(pop_dir, "pop raw/WPP2024_GEN_F01_DEMOGRAPHIC_INDICATORS_COMPACT.xlsx"),
                                   output_dir = file.path(pop_dir, "processed_pop_file"),

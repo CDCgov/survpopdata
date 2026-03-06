@@ -16,7 +16,7 @@
 #' @export
 load_polis_pop <- function(spatial_scale,
                            edav = TRUE,
-                           file_loc = "GID/PEB/SIR/POLIS 2.0/data/pop.parquet",
+                           file_loc = "GID/PEB/SIR/POLIS/data/pop.parquet",
                            azcontainer = sirfunctions::get_azure_storage_connection()) {
   # Auto-detect edav when file_loc is not specified
   if (is.null(edav)) {
