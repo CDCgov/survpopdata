@@ -10,7 +10,7 @@
 #'
 load_dist_pop_rollup <- function(dist_pop_file_path = file.path("GID/PEB/SIR/Data/pop",
                                                                 "processed_pop_file",
-                                                                "global.dist.parquet"),
+                                                                "dist.pop.long.parquet"),
                                  edav = TRUE) {
 
   # Load cleaned dist pop
@@ -19,9 +19,12 @@ load_dist_pop_rollup <- function(dist_pop_file_path = file.path("GID/PEB/SIR/Dat
   # Roll it up buttercup
   dist_pop_rollup <- processed_dist_pop |>
     dplyr::group_by(adm1guid, year) |>
-    dplyr::summarize(u15pop_rollup = sum(u15pop, na.rm = TRUE),
-                     u5pop_rollup = sum(u5pop, na.rm = TRUE),
-                     totpop_rollup = sum(totpop, na.rm = TRUE))
+    # if NA then all districts for a province doesn't have pops and we want
+    # the rollups to contain only for provinces where all districts do have pops
+    dplyr::summarize(u15pop_rollup = sum(u15pop),
+                     u5pop_rollup = sum(u5pop),
+                     totpop_rollup = sum(totpop)
+                     )
 
   return(dist_pop_rollup)
 
@@ -211,26 +214,10 @@ process_prov_pop_data <- function(pop_data,
     tidyr::fill(growth_rate, .direction = "downup") |>
     dplyr::ungroup()
 
-  # Apply growth rates
-  cli::cli_process_start("Applying growth rate to fill missing populations.")
-  result <- base_data |>
-    apply_growth_rate("0-15Y", grouping_col = "ADM1_GUID") |>
-    apply_growth_rate("0-5Y", grouping_col = "ADM1_GUID") |>
-    apply_growth_rate("ALL", grouping_col = "ADM1_GUID")
-  cli::cli_process_done()
-
-  polis_pop_u15_na_n <- sum(is.na(polis_pop$`0-15Y`))
-  growth_rate_added_na_n <- sum(is.na(result$`0-15Y`))
-
-  cli::cli_alert_info(paste0("Growth rate filled in additional ",
-                             polis_pop_u15_na_n - growth_rate_added_na_n,
-                             " province u15 population."))
-
-
   # Using population roll-ups to fill in the rest
-  result <- dplyr::left_join(result,
-                                  dist_pop_rollup |>
-                                    dplyr::rename(ADM1_GUID = adm1guid)) |>
+  result <- dplyr::left_join(base_data,
+                             dist_pop_rollup |>
+                               dplyr::rename(ADM1_GUID = adm1guid)) |>
     dplyr::mutate(dplyr::across(c("u15pop_rollup", "u5pop_rollup", "totpop_rollup"),
                                 \(x) ifelse(x == 0, NA, x))) |>
     dplyr::mutate(datasource = dplyr::case_when(
@@ -247,8 +234,30 @@ process_prov_pop_data <- function(pop_data,
   # Get how many records filled
   dist_rollup_added_na_n <- sum(is.na(result$`0-15Y`))
   cli::cli_alert_info(paste0("Population roll-up filled in additional ",
-                             growth_rate_added_na_n - dist_rollup_added_na_n,
+                             sum(is.na(base_data$`0-15Y`)) - dist_rollup_added_na_n,
                              " province u15 population."))
+
+  # Apply growth rates
+  cli::cli_process_start("Applying growth rate to fill missing populations.")
+  result <- result |>
+    apply_growth_rate("0-15Y", grouping_col = "ADM1_GUID") |>
+    apply_growth_rate("0-5Y", grouping_col = "ADM1_GUID") |>
+    apply_growth_rate("ALL", grouping_col = "ADM1_GUID")
+  cli::cli_process_done()
+
+  polis_pop_u15_na_n <- sum(is.na(polis_pop$`0-15Y`))
+  growth_rate_added_na_n <- sum(is.na(result$`0-15Y`))
+
+  cli::cli_alert_info(paste0("Growth rate filled in additional ",
+                             dist_rollup_added_na_n - growth_rate_added_na_n,
+                             " province u15 population."))
+
+  # Summary
+  cli::cli_alert_info(paste0("District roll-ups and growth rate application ",
+                             "filled in ", polis_pop_u15_na_n - growth_rate_added_na_n,
+                             " (", round((polis_pop_u15_na_n - growth_rate_added_na_n) / nrow(result) * 100, 2),
+                             "%)",
+                             " additional province pops in the POLIS province pop files."))
 
   # Add WHO region to results because the new SF doesn't have that column
   result <- dplyr::left_join(result |>

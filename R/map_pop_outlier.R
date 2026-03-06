@@ -76,7 +76,7 @@ map_pop_outlier <- function(pop_w_outlier_cat,
                  "likely data error (>15%)" = "darkred",
                  "no data from previous year" = "lightgrey")
     ) +
-    ggplot2::facet_wrap(~year, ncol = length(year_start:year_end)) +
+    ggplot2::facet_wrap(~year, ncol = 4) +
     ggplot2::labs(title = "% Difference in population compared to previous year",
                   subtitle = "Any changes greater than \u00B13% are flagged for review") +
     ggplot2::theme(
