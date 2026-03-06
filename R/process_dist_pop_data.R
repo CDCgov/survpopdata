@@ -480,12 +480,13 @@ apply_growth_rate <- function(base_data, pop_column, grouping_col = "ADM2_GUID")
 
   # backfill
   backward_fill <- base_data_formatted |>
-    dplyr::filter(year < anchor_year) |>
-    dplyr::arrange(dplyr::desc(year)) |>
+    dplyr::arrange(dplyr::desc(year), !!dplyr::sym(grouping_col), anchor_year) |>
+    dplyr::filter(year <= anchor_year) |>
     dplyr::group_by(!!dplyr::sym(grouping_col), anchor_year) |>
-    dplyr::mutate(cp = cumprod((1+growth_rate)),
-           computed_value = anchor_value / cp,
-           growth_rate) |>
+    dplyr::mutate(lag_gr = dplyr::lag(growth_rate)) |>
+    dplyr::filter(year != anchor_year) |> # remove anchor year values
+    dplyr::mutate(cp = cumprod((1+lag_gr)),
+           computed_value = anchor_value / cp) |>
     dplyr::ungroup()
 
   # no fill
@@ -498,7 +499,9 @@ apply_growth_rate <- function(base_data, pop_column, grouping_col = "ADM2_GUID")
   # replace
   base_data_growth_rate_filled <- base_data_growth_rate_filled |>
     dplyr::mutate(dplyr::across(dplyr::any_of(pop_column), \(x) dplyr::if_else(is.na(x), computed_value, x))) |>
-    dplyr::select(-cp, -computed_value, -anchor_year, -anchor_value) |>
+    dplyr::select(-cp, -computed_value, -anchor_value) |>
+    dplyr::rename_with(dplyr::recode,
+                       anchor_year = paste0(pop_column,"_anchor_year")) |>
     dplyr::arrange(ADM0_NAME, year)
 
   return(base_data_growth_rate_filled)
