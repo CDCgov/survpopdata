@@ -42,7 +42,11 @@ detect_processed_pop_outliers <- function(cleaned_pop_data, group_col = "adm1gui
                                                        "very rare (7-14.9%)",
                                                        "likely data error (>15%)",
                                                        "no data"),
-                                            ordered = TRUE)))
+                                            ordered = TRUE))) |>
+    dplyr::select(-dplyr::starts_with("prev_val"),
+                  -dec_change_u15,
+                  -dec_change_u5,
+                  -dec_change_tot)
 
   # Communicate the errors
   cli::cli_alert_info("Under 15 Pop summary")
