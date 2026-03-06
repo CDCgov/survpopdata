@@ -16,7 +16,7 @@
 #' @export
 load_polis_pop <- function(spatial_scale,
                            edav = TRUE,
-                           file_loc = "GID/PEB/SIR/POLIS/data/pop.rds",
+                           file_loc = "GID/PEB/SIR/POLIS/data/pop.parquet",
                            azcontainer = sirfunctions::get_azure_storage_connection()) {
   # Auto-detect edav when file_loc is not specified
   if (is.null(edav)) {
@@ -39,12 +39,12 @@ load_polis_pop <- function(spatial_scale,
   # Filter and include source column
   polis_data <- switch(
     spatial_scale,
-    "ctry" = dplyr::filter(polis_data, !is.na(Admin0GUID) & is.na(Admin1GUID) & is.na(Admin2GUID)) |>
+    "ctry" = dplyr::filter(polis_data, !is.na(Admin0GUID) & is.na(Admin1GUID) & is.na(Admin2GUID) & FK_DataSetId == 1) |>
       dplyr::select(-dplyr::any_of(c("Admin1GUID", "Admin1Name", "Admin1Id",
                                      "Admin2GUID", "Admin2Name", "Admin2Id"))),
-    "prov" = dplyr::filter(polis_data, !is.na(Admin0GUID) & !is.na(Admin1GUID) & is.na(Admin2GUID)) |>
+    "prov" = dplyr::filter(polis_data, !is.na(Admin0GUID) & !is.na(Admin1GUID) & is.na(Admin2GUID) & FK_DataSetId == 2) |>
       dplyr::select(-dplyr::any_of(c("Admin2GUID", "Admin2Name", "Admin2Id"))),
-    "dist" = dplyr::filter(polis_data, !is.na(Admin0GUID) & !is.na(Admin1GUID) & !is.na(Admin2GUID))
+    "dist" = dplyr::filter(polis_data, !is.na(Admin0GUID) & !is.na(Admin1GUID) & !is.na(Admin2GUID) & FK_DataSetId == 2)
   ) |>
     dplyr::mutate(datasource = "POLIS API")
 
