@@ -378,5 +378,5 @@ process_prov_pop_data <- function(pop_data,
 
   cli::cli_alert_success("Province population created.")
 
-  invisible(result_formatted)
+  invisible(formatted_result)
 }
