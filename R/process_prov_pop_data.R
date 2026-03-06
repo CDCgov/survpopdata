@@ -214,9 +214,9 @@ process_prov_pop_data <- function(pop_data,
   # Apply growth rates
   cli::cli_process_start("Applying growth rate to fill missing populations.")
   result <- base_data |>
-    apply_growth_rate("ALL", grouping_col = "ADM1_GUID") |>
     apply_growth_rate("0-15Y", grouping_col = "ADM1_GUID") |>
-    apply_growth_rate("0-5Y", grouping_col = "ADM1_GUID")
+    apply_growth_rate("0-5Y", grouping_col = "ADM1_GUID") |>
+    apply_growth_rate("ALL", grouping_col = "ADM1_GUID")
   cli::cli_process_done()
 
   polis_pop_u15_na_n <- sum(is.na(polis_pop$`0-15Y`))
