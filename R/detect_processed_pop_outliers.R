@@ -29,7 +29,7 @@ detect_processed_pop_outliers <- function(cleaned_pop_data, group_col = "adm1gui
                       dplyr::between(x, 0.05, 0.069) ~ "rare (5-6.9%)",
                       dplyr::between(x, 0.07, 0.149) ~ "very rare (7-14.9%)",
                       dplyr::between(x, 0.15, Inf) ~ "likely data error (>15%)",
-                      .default = "no data"
+                      .default = "no data from previous year"
                     ), .names = "{.col}_cat")
     ) |>
     dplyr::mutate(dplyr::across(dplyr::any_of(c("dec_change_u15_cat",
@@ -41,7 +41,7 @@ detect_processed_pop_outliers <- function(cleaned_pop_data, group_col = "adm1gui
                                                        "rare (5-6.9%)",
                                                        "very rare (7-14.9%)",
                                                        "likely data error (>15%)",
-                                                       "no data"),
+                                                       "no data from previous year"),
                                             ordered = TRUE))) |>
     dplyr::select(-dplyr::starts_with("prev_val"),
                   -dec_change_u15,

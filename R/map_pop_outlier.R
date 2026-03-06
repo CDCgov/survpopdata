@@ -74,7 +74,7 @@ map_pop_outlier <- function(pop_w_outlier_cat,
                  "rare (5-6.9%)" = "darkorange",
                  "very rare (7-14.9%)" = "red",
                  "likely data error (>15%)" = "darkred",
-                 "no data" = "lightgrey")
+                 "no data from previous year" = "lightgrey")
     ) +
     ggplot2::facet_wrap(~year, ncol = length(year_start:year_end)) +
     ggplot2::labs(title = "% Difference in population compared to previous year",
