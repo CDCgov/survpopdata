@@ -9,6 +9,7 @@ map_pop_outlier(
   sf_long,
   pop_cat = "u15",
   ctry_name = NULL,
+  who_region = NULL,
   year_end = lubridate::year(Sys.Date()),
   year_start = year_end - 3
 )
@@ -22,7 +23,9 @@ is the same as the population file.}
 
 \item{pop_cat}{\code{str} Population category to map. Either u15, u5, or totpop.}
 
-\item{ctry_name}{\code{str} Optional country name}
+\item{ctry_name}{\code{str} Optional country name.}
+
+\item{who_region}{\code{str} Optional region name.}
 
 \item{year_end}{\code{int} Year end. Defaults to current year.}
 
