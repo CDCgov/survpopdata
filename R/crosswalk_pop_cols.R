@@ -48,6 +48,11 @@ crosswalk_pop_cols <- function(pop_data) {
                                   "STARTDATE", "ENDDATE",
                                   "CREATEDDATE", "UPDATEDDATE",
                                   "year", "AgeGroupCode",
-                                  "Value", "datasource")))
+                                  "Value", "datasource", "FK_DataSetId"))) |>
+    dplyr::mutate(dplyr::across(dplyr::any_of(c("AgeGroupCode", "FK_DataSetId",
+                                                "ISO_3_CODE", "WHO_REGION",
+                                                "ADM0_NAME", "ADM1_NAME", "ADM2_NAME",
+                                                "adm0guid", "adm1guid", "adm2guid")),
+                                \(x) factor(x)))
   return(formatted_pop)
 }

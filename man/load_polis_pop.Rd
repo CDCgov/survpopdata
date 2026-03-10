@@ -7,7 +7,7 @@
 load_polis_pop(
   spatial_scale,
   edav = TRUE,
-  file_loc = "GID/PEB/SIR/POLIS/data/pop.rds",
+  file_loc = "GID/PEB/SIR/POLIS/data/pop.parquet",
   azcontainer = sirfunctions::get_azure_storage_connection()
 )
 }
