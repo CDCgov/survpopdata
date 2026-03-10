@@ -1,0 +1,169 @@
+# CDCgov GitHub Organization Open Source Project Template
+
+**General disclaimer** This repository was created for use by CDC
+programs to collaborate on public health related projects in support of
+the [CDC
+mission](https://www.cdc.gov/about/cdc/#cdc_about_cio_mission-our-mission).
+GitHub is not hosted by the CDC, but is a third party website used by
+CDC and its partners to share information and collaborate on software.
+CDC use of GitHub does not imply an endorsement of any one particular
+service, product, or enterprise.
+
+## Access Request, Repo Creation Request
+
+- [CDC GitHub Open Project Request
+  Form](https://forms.office.com/Pages/ResponsePage.aspx?id=aQjnnNtg_USr6NJ2cHf8j44WSiOI6uNOvdWse4I-C2NUNk43NzMwODJTRzA4NFpCUk1RRU83RTFNVi4u)
+  *\[Requires a CDC Office365 login, if you do not have a CDC Office365
+  please ask a friend who does to submit the request on your behalf. If
+  you’re looking for access to the CDCEnt private organization, please
+  use the [GitHub Enterprise Cloud Access Request
+  form](https://forms.office.com/Pages/ResponsePage.aspx?id=aQjnnNtg_USr6NJ2cHf8j44WSiOI6uNOvdWse4I-C2NUQjVJVDlKS1c0SlhQSUxLNVBaOEZCNUczVS4u).\]*
+
+## Related documents
+
+- [Open
+  Practices](https://cdcgov.github.io/survpopdata/open_practices.md)
+- [Rules of
+  Behavior](https://cdcgov.github.io/survpopdata/rules_of_behavior.md)
+- [Thanks and
+  Acknowledgements](https://cdcgov.github.io/survpopdata/thanks.md)
+- [Disclaimer](https://cdcgov.github.io/survpopdata/DISCLAIMER.md)
+- [Contribution
+  Notice](https://cdcgov.github.io/survpopdata/CONTRIBUTING.md)
+- [Code of
+  Conduct](https://cdcgov.github.io/survpopdata/code-of-conduct.md)
+
+## Overview
+
+This package is used to create the population datasets used in various
+analyses conducted by teams within the Polio Eradication Branch.
+
+## Public Domain Standard Notice
+
+This repository constitutes a work of the United States Government and
+is not subject to domestic copyright protection under 17 USC § 105. This
+repository is in the public domain within the United States, and
+copyright and related rights in the work worldwide are waived through
+the [CC0 1.0 Universal public domain
+dedication](https://creativecommons.org/publicdomain/zero/1.0/). All
+contributions to this repository will be released under the CC0
+dedication. By submitting a pull request you are agreeing to comply with
+this waiver of copyright interest.
+
+## License Standard Notice
+
+The repository utilizes code licensed under the terms of the Apache
+Software License and therefore is licensed under ASL v2 or later.
+
+This source code in this repository is free: you can redistribute it
+and/or modify it under the terms of the Apache Software License version
+2, or (at your option) any later version.
+
+This source code in this repository is distributed in the hope that it
+will be useful, but WITHOUT ANY WARRANTY; without even the implied
+warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+Apache Software License for more details.
+
+You should have received a copy of the Apache Software License along
+with this program. If not, see
+[http://www.apache.org/licenses/LICENSE-2.0.html](http://www.apache.org/licenses/LICENSE-2.0.md)
+
+The source code forked from other open source projects will inherit its
+license.
+
+## Privacy Standard Notice
+
+This repository contains only non-sensitive, publicly available data and
+information. All material and community participation is covered by the
+[Disclaimer](https://cdcgov.github.io/survpopdata/DISCLAIMER.md) and
+[Code of
+Conduct](https://cdcgov.github.io/survpopdata/code-of-conduct.md). For
+more information about CDC’s privacy policy, please visit
+[http://www.cdc.gov/other/privacy.html](https://www.cdc.gov/other/privacy.html).
+
+## Contributing Standard Notice
+
+Anyone is encouraged to contribute to the repository by
+[forking](https://help.github.com/articles/fork-a-repo) and submitting a
+pull request. (If you are new to GitHub, you might start with a [basic
+tutorial](https://help.github.com/articles/set-up-git).) By contributing
+to this project, you grant a world-wide, royalty-free, perpetual,
+irrevocable, non-exclusive, transferable license to all users under the
+terms of the [Apache Software License
+v2](http://www.apache.org/licenses/LICENSE-2.0.md) or later.
+
+All comments, messages, pull requests, and other submissions received
+through CDC including this GitHub page may be subject to applicable
+federal law, including but not limited to the Federal Records Act, and
+may be archived. Learn more at
+[http://www.cdc.gov/other/privacy.html](http://www.cdc.gov/other/privacy.md).
+
+## Records Management Standard Notice
+
+This repository is not a source of government records, but is a copy to
+increase collaboration and collaborative potential. All government
+records will be published through the [CDC web
+site](http://www.cdc.gov).
+
+## Additional Standard Notices
+
+Please refer to [CDC’s Template
+Repository](https://github.com/CDCgov/template) for more information
+about [contributing to this
+repository](https://github.com/CDCgov/template/blob/main/CONTRIBUTING.md),
+[public domain notices and
+disclaimers](https://github.com/CDCgov/template/blob/main/DISCLAIMER.md),
+and [code of
+conduct](https://github.com/CDCgov/template/blob/main/code-of-conduct.md).
+
+# Package index
+
+## All functions
+
+- [`check_pop_data_quality()`](https://cdcgov.github.io/survpopdata/reference/check_pop_data_quality.md)
+  : Check Population Data Quality
+- [`create_dist_pop_map()`](https://cdcgov.github.io/survpopdata/reference/create_dist_pop_map.md)
+  : Map district population
+- [`create_prov_pop_map()`](https://cdcgov.github.io/survpopdata/reference/create_prov_pop_map.md)
+  : Map province population
+- [`crosswalk_pop_cols()`](https://cdcgov.github.io/survpopdata/reference/crosswalk_pop_cols.md)
+  : Crosswalks column names of the POLIS pop dataset
+- [`detect_processed_pop_outliers()`](https://cdcgov.github.io/survpopdata/reference/detect_processed_pop_outliers.md)
+  : Detects whether there are issues with the population data
+- [`find_conflicting_admins()`](https://cdcgov.github.io/survpopdata/reference/find_conflicting_admins.md)
+  : Find conflicting admin mappings
+- [`join_pop_to_district_year_shapes()`](https://cdcgov.github.io/survpopdata/reference/join_pop_to_district_year_shapes.md)
+  : Join named population rows to district-year shapes
+- [`load_all_patches()`](https://cdcgov.github.io/survpopdata/reference/load_all_patches.md)
+  : Combine all district patch sources
+- [`load_dist_pop_rollup()`](https://cdcgov.github.io/survpopdata/reference/load_dist_pop_rollup.md)
+  : Calculate province level population using district pop rollups
+- [`load_growth_rates()`](https://cdcgov.github.io/survpopdata/reference/load_growth_rates.md)
+  : Load population growth rates
+- [`load_indonesia_patch()`](https://cdcgov.github.io/survpopdata/reference/load_indonesia_patch.md)
+  : Indonesia province patch
+- [`load_jamal_pop()`](https://cdcgov.github.io/survpopdata/reference/load_jamal_pop.md)
+  : Load Jamal district under-15 population
+- [`load_kenya_patch()`](https://cdcgov.github.io/survpopdata/reference/load_kenya_patch.md)
+  : Load Kenya district population patch
+- [`load_pakistan_patch()`](https://cdcgov.github.io/survpopdata/reference/load_pakistan_patch.md)
+  : Load Pakistan district population patch
+- [`load_polis_pop()`](https://cdcgov.github.io/survpopdata/reference/load_polis_pop.md)
+  : Load POLIS Population Data
+- [`load_somalia_patch()`](https://cdcgov.github.io/survpopdata/reference/load_somalia_patch.md)
+  : Load Somalia district population patch
+- [`load_world_pop_patch()`](https://cdcgov.github.io/survpopdata/reference/load_world_pop_patch.md)
+  : Load 2015 World Pop data
+- [`map_pop_outlier()`](https://cdcgov.github.io/survpopdata/reference/map_pop_outlier.md)
+  : Create a map to check for population outliers
+- [`process_ctry_pop_data()`](https://cdcgov.github.io/survpopdata/reference/process_ctry_pop_data.md)
+  : Build country population (Admin0) in wide format
+- [`process_dist_pop_data()`](https://cdcgov.github.io/survpopdata/reference/process_dist_pop_data.md)
+  : Build district population (Admin2) in wide format
+- [`process_prov_pop_data()`](https://cdcgov.github.io/survpopdata/reference/process_prov_pop_data.md)
+  : Build province population (Admin1) in wide format
+- [`remove_forward_fill_non_polis()`](https://cdcgov.github.io/survpopdata/reference/remove_forward_fill_non_polis.md)
+  : Remove forward-filled values (non-POLIS only)
+- [`remove_forward_fill_polis_pop()`](https://cdcgov.github.io/survpopdata/reference/remove_forward_fill_polis_pop.md)
+  : Remove Forward-Filled POLIS Population Values
+
