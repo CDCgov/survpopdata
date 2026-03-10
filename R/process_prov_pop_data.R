@@ -51,42 +51,6 @@ load_indonesia_patch <- function(indonesia_file_path = "GID/PEB/SIR/Data/pop/pop
     dplyr::relocate(Admin0Name, Admin1Name, active.year.01, Under15Pop, Under5Pop, Total, .before = datasource)
 }
 
-#' Aggregate district population to province for missing values
-#'
-#' Fills remaining province-level NAs by summing all districts in that province-year.
-#'
-#' @param base_data Tibble of province-level population data (may have NA)
-#'
-#' @return Tibble with remaining NAs filled and aggregation flags
-#' @keywords internal
-#'
-aggregate_districts_to_province <- function(base_data) {
-
-  # Retrieve district-level population and aggregate (sum) all districts to province-year level
-  district_data <- process_dist_pop_data()
-
-  province_aggregates <- district_data |>
-    dplyr::group_by(ADM0_NAME, ADM1_NAME, year) |>
-    dplyr::summarise(
-      Total_from_districts = sum(Total, na.rm = TRUE),
-      Under5Pop_from_districts = sum(Under5Pop, na.rm = TRUE),
-      Under15Pop_from_districts = sum(Under15Pop, na.rm = TRUE),
-      .groups = "drop"
-    )
-
-  base_data |>
-    dplyr::left_join(province_aggregates, by = c("ADM0_NAME", "ADM1_NAME", "year")) |>
-    dplyr::mutate(
-      used_aggregate_Total = is.na(Total) & !is.na(Total_from_districts),
-      used_aggregate_Under5Pop = is.na(Under5Pop) & !is.na(Under5Pop_from_districts),
-      used_aggregate_Under15Pop = is.na(Under15Pop) & !is.na(Under15Pop_from_districts),
-      Total = dplyr::if_else(used_aggregate_Total, Total_from_districts, Total),
-      Under5Pop = dplyr::if_else(used_aggregate_Under5Pop, Under5Pop_from_districts, Under5Pop),
-      Under15Pop = dplyr::if_else(used_aggregate_Under15Pop, Under15Pop_from_districts, Under15Pop)
-    ) |>
-    dplyr::select(-Total_from_districts, -Under5Pop_from_districts, -Under15Pop_from_districts)
-}
-
 # Public function ----
 
 #' Build province population (Admin1) in wide format
@@ -180,9 +144,6 @@ process_prov_pop_data <- function(pop_data,
                   ADM0_GUID = dplyr::coalesce(sf_adm0guid, ADM0_GUID)) |>
     dplyr::select(-dplyr::starts_with("sf_"), -FK_DataSetId)
 
-  # Compare different adm1guids and determine which GUID it represents
-  # Count number of GUIDs in non-API sources that belong in the district shapefile
-
   base_data <- polis_pop |>
     dplyr::mutate(active.year.01 = as.numeric(active.year.01)) |>
     dplyr::rename(ADM1_GUID = "GUID", year = "active.year.01") |>
@@ -200,7 +161,8 @@ process_prov_pop_data <- function(pop_data,
 
   if (nrow(prov_year_duplicates) != 0) {
     cli::cli_alert_warning("There are duplicate adm1guid and year combination in base_data. Check for many-to-many relationships.")
-    sirfunctions::sirfunctions_io("write", NULL, file_loc = file.path(pop_dir, "errors", "adm1guid_year_duplicates_polis_api.csv"))
+    sirfunctions::sirfunctions_io("write", NULL, file_loc = file.path(pop_dir, "errors", "adm1guid_year_duplicates_polis_api.csv"),
+                                  obj = prov_year_duplicates)
   } else {
     cli::cli_alert_success("No duplicate adm1guid-year combinations.")
   }
