@@ -2,3 +2,4 @@
 ^renv\.lock$
 ^survpopdata\.Rproj$
 ^\.Rproj\.user$
+^LICENSE\.md$
