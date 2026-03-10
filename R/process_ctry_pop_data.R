@@ -1,5 +1,3 @@
-# Private functions ----
-
 # Public function ----
 
 #' Build country population (Admin0) in wide format
