@@ -15,9 +15,9 @@ Suggests:
 Config/testthat/edition: 3
 Imports: 
     assertr,
+    ggplot2,
     dplyr,
     lubridate,
-    dplyr,
     sirfunctions,
     stringr,
     tidyr
