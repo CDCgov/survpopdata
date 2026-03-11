@@ -24,3 +24,4 @@ Imports:
 Remotes:
     CDCGov/sirfunctions
 URL: https://cdcgov.github.io/survpopdata/
+Config/Needs/website: rmarkdown
