@@ -21,7 +21,9 @@ The `survpopdata` package attempts to standardize the data cleaning of the popul
 
 Several patch files are required for cleaning the district population. For information on the patch files used during the cleaning process, refer to the [Patch files](Patch-files) section of the [Appendix](Appendix). Patch files are required to run the cleaning step, and they should be requested from the CDC SIR team. Please contact Stephanie Kovacs at [uvx4\@cdc.gov](mailto:uvx4@cdc.gov){.email} for these files.
 
-In addition, cleaned country, province, and district shape files are required. The WHO geodatabase can be requested from Oluwadamilola Obafemi Sonoiki at [sonoikio\@who.int](mailto:sonoikio@who.int){.email}. The cleaned country, province, and district shapefiles are produced by passing the geodatabase (.gdb) folder to the tidypolis::process_spatial() function. The [tidypolis](https://github.com/CDCgov/tidypolis) R package is required to produce these shape files and more information can be found in the function description. Please see `?tidypolis::process_spatial()` after downloading the tidypolis package.
+In addition, cleaned country, province, and district shape files are required. The WHO geodatabase is available in [POLIS](https://extranet.who.int/polis), under **Documents > GIS Releases**, or can be requested from Oluwadamilola Obafemi Sonoiki at [sonoikio\@who.int](mailto:sonoikio@who.int){.email}. The cleaned country, province, and district shapefiles are produced by passing the geodatabase (.gdb) folder to the tidypolis::process_spatial() function. 
+
+The [tidypolis](https://github.com/CDCgov/tidypolis) R package is required to produce these shape files and more information can be found in the function description. Please see `?tidypolis::process_spatial()` after downloading the tidypolis package.
 
 ## Downloading the POLIS population dataset
 
@@ -36,6 +38,9 @@ get_polis_data("pop")
 # The population dataset will be located in C:/Users/abc1/Desktop/POLIS/data/pop.parquet
 ```
 
+## Main functions in survpopdata
+
+
 ## Methodology
 
 The process for building the population dataset at the different administrative levels have different methodologies. However, all the population data starts with the data obtained from the POLIS API and gaps are filled when necessary.
@@ -46,9 +51,9 @@ Function: `process_dist_pop_data()`
 
 The district population are first pulled from the POLIS API population data, and then filtered to only use the Polio Program Population Data (`FK_DatasetId = 2`). Forward-filled records are removed. The growth rates dataset are joined to the population dataset by the country name and year.
 
-The district shape file and population dataset are then joined using year and Adm2GUID. In instances where geographic names (country, province, and district) are mismatched between the two, the shape file geographic names are used.
+The district shape file and population dataset are then joined using year and Adm2GUID. In instances where geographic names (ADM0_NAME, ADM1_NAME, and ADM2_NAME) are mismatched between the two, the shape file geographic names are used.
 
-The order of filling in population data from the POLIS API is as follows: Pakistan 2022-2023 Patch \> Somalia 2022-2024 Patch \> Kenya 2018 Patch \> WHO supplementary pop file 2018 - 2022 \> World Pop 2015. These patch fills primarily patches Under 15 population counts. If there are still missing district populations, [growth rates](Growth-rate-methodology) are applied to fill in missing data.
+The order of filling in population data from the POLIS API is as follows: Pakistan 2022-2023 Patch \> Somalia 2022-2024 Patch \> Kenya 2018 Patch \> WHO supplementary pop file 2018 - 2022 \> World Pop 2015. These patch fills primarily patches Under 15 population counts. If there are still missing district populations, grow rates are applied to fill in missing data. For a detailed explanation on the growth rate implementation, please see the [Growth rates methodology ](Growth-rate-methodology) section in the [Appendix](Appendix).
 
 ### Province population
 
@@ -56,9 +61,9 @@ Function: `process_prov_pop_data()`
 
 Similar to the district population, the province population are pulled from the POLIS API population data, and then filtered to only use the Polio Program Population Data (`FK_DatasetId = 2`). Forward-filled records are removed. The growth rates dataset are joined to the population dataset by the country name and year.
 
-The province shapefile and population dataset are then joined using year and Adm1GUID. In instances where geographic names (country, province, and district) are mismatched between the two, the shape file geographic names are used.
+The province shapefile and population dataset are then joined using year and Adm1GUID. In instances where geographic names (ADM0_NAME and ADM1_NAME) are mismatched between the two, the shape file geographic names are used.
 
-Missing province populations are first filled using the district population roll-up from the cleaned district population. The district population roll-up only fills in a district if all districts within the province have population data.
+Missing province populations are first filled using the district population roll-up from the cleaned district population. The district population roll-up only fills in a province if all districts within that province have population data.
 
 After filling in data using the population roll-up, growth rates are used to fill in additional province population.
 
@@ -68,11 +73,12 @@ Function: `process_ctry_pop_data()`
 
 The country population are pulled from the POLIS API population data, and then filtered to only use the UNDP Population Data (`FK_DatasetId = 1`). Forward-filled records are removed. The growth rates dataset are joined to the population dataset by the country name and year.
 
-The country shapefile and the population dataset are then joined using the year and Adm0GUID. In instances where geographic names (country, province, and district) are mismatched between the two, the shape file geographic names are used.
+The country shapefile and the population dataset are then joined using the year and Adm0GUID. In instances where geographic names (ADM0_NAME) are mismatched between the two, the shape file geographic names are used.
 
 Growth rates are used to fill additional country population.
 
 ## Checking for unusual changes to population counts
+
 
 ## Appendix
 
