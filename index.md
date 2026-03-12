@@ -1,4 +1,4 @@
-# CDCgov GitHub Organization Open Source Project Template
+# survpopdata R package
 
 **General disclaimer** This repository was created for use by CDC
 programs to collaborate on public health related projects in support of
@@ -36,7 +36,7 @@ service, product, or enterprise.
 ## Overview
 
 This package is used to create the population datasets used in various
-analyses conducted by teams within the Polio Eradication Branch.
+analyses conducted by collaborators within GPEI.
 
 ## Public Domain Standard Notice
 
