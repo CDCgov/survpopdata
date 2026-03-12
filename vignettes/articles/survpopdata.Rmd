@@ -1,0 +1,110 @@
+---
+title: "Getting started with survpopdata"
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+```{r setup}
+library(survpopdata)
+```
+
+## Introduction
+
+The `survpopdata` package attempts to standardize the data cleaning of the population data used in GPEI analyses. For example, it ensures that the geographic names are consistent with the WHO geodatabase. In addition, perform de-duplication wherever it is needed. Finally, it attempts to fill in missing population data using population patches provided by regional partners, or using growth rates.
+
+## Pre-requisite files
+
+Several patch files are required for cleaning the district population. For information on the patch files used during the cleaning process, refer to the [Patch files](Patch-files) section of the [Appendix](Appendix). Patch files are required to run the cleaning step, and they should be requested from the CDC SIR team. Please contact Stephanie Kovacs at [uvx4\@cdc.gov](mailto:uvx4@cdc.gov){.email} for these files.
+
+In addition, cleaned country, province, and district shape files are required. The WHO geodatabase is available in [POLIS](https://extranet.who.int/polis), under **Documents > GIS Releases**, or can be requested from Oluwadamilola Obafemi Sonoiki at [sonoikio\@who.int](mailto:sonoikio@who.int){.email}. The cleaned country, province, and district shapefiles are produced by passing the geodatabase (.gdb) folder to the tidypolis::process_spatial() function. 
+
+The [tidypolis](https://github.com/CDCgov/tidypolis) R package is required to produce these shape files and more information can be found in the function description. Please see `?tidypolis::process_spatial()` after downloading the tidypolis package.
+
+## Downloading the POLIS population dataset
+
+There are several ways to obtain the POLIS population dataset. The code below uses the tidypolis package and is the recommended way of obtaining datasets from the POLIS API.
+
+``` r
+library(tidypolis)
+init_tidypolis("C:/Users/abc1/Desktop/POLIS", edav = FALSE) # EDAV for CDC use only
+
+get_polis_data("pop") 
+
+# The population dataset will be located in C:/Users/abc1/Desktop/POLIS/data/pop.parquet
+```
+
+## Main functions in survpopdata
+
+
+## Methodology
+
+The process for building the population dataset at the different administrative levels have different methodologies. However, all the population data starts with the data obtained from the POLIS API and gaps are filled when necessary.
+
+### District population
+
+Function: `process_dist_pop_data()`
+
+The district population are first pulled from the POLIS API population data, and then filtered to only use the Polio Program Population Data (`FK_DatasetId = 2`). Forward-filled records are removed. The growth rates dataset are joined to the population dataset by the country name and year.
+
+The district shape file and population dataset are then joined using year and Adm2GUID. In instances where geographic names (ADM0_NAME, ADM1_NAME, and ADM2_NAME) are mismatched between the two, the shape file geographic names are used.
+
+The order of filling in population data from the POLIS API is as follows: Pakistan 2022-2023 Patch \> Somalia 2022-2024 Patch \> Kenya 2018 Patch \> WHO supplementary pop file 2018 - 2022 \> World Pop 2015. These patch fills primarily patches Under 15 population counts. If there are still missing district populations, grow rates are applied to fill in missing data. For a detailed explanation on the growth rate implementation, please see the [Growth rates methodology ](Growth-rate-methodology) section in the [Appendix](Appendix).
+
+### Province population
+
+Function: `process_prov_pop_data()`
+
+Similar to the district population, the province population are pulled from the POLIS API population data, and then filtered to only use the Polio Program Population Data (`FK_DatasetId = 2`). Forward-filled records are removed. The growth rates dataset are joined to the population dataset by the country name and year.
+
+The province shapefile and population dataset are then joined using year and Adm1GUID. In instances where geographic names (ADM0_NAME and ADM1_NAME) are mismatched between the two, the shape file geographic names are used.
+
+Missing province populations are first filled using the district population roll-up from the cleaned district population. The district population roll-up only fills in a province if all districts within that province have population data.
+
+After filling in data using the population roll-up, growth rates are used to fill in additional province population.
+
+### Country population
+
+Function: `process_ctry_pop_data()`
+
+The country population are pulled from the POLIS API population data, and then filtered to only use the UNDP Population Data (`FK_DatasetId = 1`). Forward-filled records are removed. The growth rates dataset are joined to the population dataset by the country name and year.
+
+The country shapefile and the population dataset are then joined using the year and Adm0GUID. In instances where geographic names (ADM0_NAME) are mismatched between the two, the shape file geographic names are used.
+
+Growth rates are used to fill additional country population.
+
+## Checking for unusual changes to population counts
+
+
+## Appendix
+
+### Growth rate methodology
+
+For growth rates, there are two ways it is done, using back fill or forward fill, depending on the anchor year. The anchor year is the latest year where data was available. For example, if a district has no population in 2025 but had one in 2024, then the anchor year will be 2024. Similarly, if there was no data in 2023, then the anchor year will be 2024. However, the default will be forward filling. For example, if there was data in 2022, no data in 2023, and data in 2024, the anchor year for 2023 is 2022. The growth rate is then applied based on the anchor value and the growth rate for a particular year.
+
+For example, 2023 is missing population and we know it had a growth rate of 2%. The previous year, 2022, did have population (say 100K). Therefore we make 2022 the anchor year and 100K the anchor value. Then, the population in 2023 is $100000(1 + 0.02) = 102000$.
+
+### Patch files
+
+-   **Pakistan 2022-2023 Patch**:
+    -   File name: 2022_2023 Population Pakistan.csv
+    -   Description: 2022 and 2023 under 15 district population for Pakistan received from the CDC Pakistan team.
+-   **Somalia 2022-2024 Patch**:
+    -   File names: AFPPOP_22.csv, AFPPOP_23.csv, AFPPOP_23.csv
+    -   Description: Somalia under 15 population for 2022 through 2023 received from the WHO EMRO team.
+-   **Kenya 2018 Patch**:
+    -   File name: Kenya_SubCounty_pop_2018.csv
+    -   Description: Kenya under 15 population for 2018, received from WHO AFRO team.
+-   **WHO supplementary pop file 2018 - 2022**:
+    -   File name: POPU15.csv
+    -   Description: Supplementary population file received from WHO HQ for 2018 through 2022.
+-   **World Pop 2015**:
+    -   File name: adm2_2015_pop.csv
+    -   Description: District population for 2015 from World Pop.
+-   **Growth rate**:
+    -   File name: WPP2024_GEN_F01_DEMOGRAPHIC_INDICATORS_COMPACT.xlsx
+    -   Description: World population prospects country level growth rates. Latest growth rate estimates can be obtained [here](https://population.un.org/wpp/downloads?folder=Standard%20Projections&group=Most%20used).
