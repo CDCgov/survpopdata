@@ -92,8 +92,25 @@ process_ctry_pop_data <- function(pop_data,
   polis_pop <- dplyr::left_join(country_long_subset |>
                                   dplyr::rename(sf_adm0_name = ADM0_NAME),
                                 polis_pop) |>
-    dplyr::distinct() |>
-    dplyr::mutate(ADM0_NAME = dplyr::coalesce(sf_adm0_name, ADM0_NAME)) |>
+    dplyr::distinct()
+
+  # Check when the pop names are not matching with the shapefile
+  ctry_name_mismatch <- polis_pop |>
+    dplyr::filter(sf_adm0_name != ADM0_NAME)
+
+  if (nrow(ctry_name_mismatch) > 0) {
+    cli::cli_alert_warning("Country name mismatches between pop and shapefile. See 'errors' folder.")
+    sirfunctions::sirfunctions_io("write", NULL, file.path(pop_dir, "errors",
+                                                           paste0(Sys.Date(),
+                                                                  "_ctry_name_mismatches_in_ctry_pop.csv")),
+                                  obj = ctry_name_mismatch,
+                                  edav = edav)
+  } else {
+    cli::cli_alert_success("No mismatches in country names between pop and shapefile.")
+  }
+
+  polis_pop <- polis_pop |>
+    dplyr::mutate(ADM0_NAME = sf_adm0_name) |>
     dplyr::select(-dplyr::starts_with("sf_"), -FK_DataSetId)
 
   base_data <- polis_pop |>
@@ -193,6 +210,8 @@ process_ctry_pop_data <- function(pop_data,
       miss.u15 = dplyr::if_else(is.na(u15pop), TRUE, FALSE),
       miss.totpop = dplyr::if_else(is.na(totpop), TRUE, FALSE)
     ) |>
+    dplyr::relocate(u15pop, u5pop, totpop, .after = datasource) |>
+    dplyr::relocate(growth.rate, .before = used.growth.rate) |>
     dplyr::select(-dplyr::contains("used_growth_rate_"))
 
   sirfunctions::sirfunctions_io("write", NULL,

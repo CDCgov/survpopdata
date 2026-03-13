@@ -295,9 +295,9 @@ process_prov_pop_data <- function(pop_data,
       u15.anchor.year = "0-15Y_anchor_year",
       u5.anchor.year = "0-5Y_anchor_year",
       tot.anchor.year = "ALL_anchor_year",
-      used.growth.rate.tot = "used_growth_ALL",
-      used.growth.rate.u5 = "used_growth_0-5Y",
-      used.growth.rate.u15 = "used_growth_0-15Y"
+      used_growth_rate_tot = "used_growth_ALL",
+      used_growth_rate_u5 = "used_growth_0-5Y",
+      used_growth_rate_u15 = "used_growth_0-15Y"
     ) |>
     dplyr::relocate(who.region, ctry, prov, adm0guid, adm1guid, .after = year) |>
     dplyr::mutate(
