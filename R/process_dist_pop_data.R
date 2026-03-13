@@ -448,7 +448,7 @@ remove_forward_fill_non_polis <- function(non_polis_pop) {
 #' @returns `tibble` Population data with population filled based on growth rates
 #' @keywords internal
 #'
-apply_growth_rate <- function(base_data, pop_column, grouping_col = "ADM2_GUID") {
+apply_growth_rate <- function(base_data, pop_column, grouping_col = "ADM2_SHAPE_ID") {
 
   # Create anchor year vars
   base_data_formatted <- base_data |>

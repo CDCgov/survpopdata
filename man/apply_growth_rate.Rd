@@ -4,7 +4,7 @@
 \alias{apply_growth_rate}
 \title{Applies the growth rate to each population columns}
 \usage{
-apply_growth_rate(base_data, pop_column, grouping_col = "ADM2_GUID")
+apply_growth_rate(base_data, pop_column, grouping_col = "ADM2_SHAPE_ID")
 }
 \arguments{
 \item{base_data}{\code{tibble} Combined population data with the growth rate columns.}
