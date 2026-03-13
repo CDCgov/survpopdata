@@ -6,7 +6,7 @@ Load population growth rates
 
 ``` r
 load_growth_rates(
-  file_loc =
+  .file_loc =
     "GID/PEB/SIR/Data/pop/pop raw/WPP2024_GEN_F01_DEMOGRAPHIC_INDICATORS_COMPACT.xlsx",
   edav = TRUE
 )
@@ -14,7 +14,7 @@ load_growth_rates(
 
 ## Arguments
 
-- file_loc:
+- .file_loc:
 
   `str` Path to WPP Excel file.
 

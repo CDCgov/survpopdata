@@ -10,13 +10,13 @@
 ## Citation
 
 Cuadera M, Bammeke P (2026). *survpopdata: Create Cleaned Population
-Datasets Used In GPEI Analyses*. R package version 1.0.0,
+Datasets Used In GPEI Analyses*. R package version 1.0.1,
 <https://cdcgov.github.io/survpopdata/>.
 
     @Manual{,
       title = {survpopdata: Create Cleaned Population Datasets Used In GPEI Analyses},
       author = {Mervin Keith Cuadera and Philip Bammeke},
       year = {2026},
-      note = {R package version 1.0.0},
+      note = {R package version 1.0.1},
       url = {https://cdcgov.github.io/survpopdata/},
     }

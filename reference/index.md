@@ -39,11 +39,11 @@
 - [`map_pop_outlier()`](https://cdcgov.github.io/survpopdata/reference/map_pop_outlier.md)
   : Create a map to check for population outliers
 - [`process_ctry_pop_data()`](https://cdcgov.github.io/survpopdata/reference/process_ctry_pop_data.md)
-  : Build country population (Admin0) in wide format
+  : Build country population
 - [`process_dist_pop_data()`](https://cdcgov.github.io/survpopdata/reference/process_dist_pop_data.md)
-  : Build district population (Admin2) in wide format
+  : Build district population
 - [`process_prov_pop_data()`](https://cdcgov.github.io/survpopdata/reference/process_prov_pop_data.md)
-  : Build province population (Admin1) in wide format
+  : Build province population
 - [`remove_forward_fill_non_polis()`](https://cdcgov.github.io/survpopdata/reference/remove_forward_fill_non_polis.md)
   : Remove forward-filled values (non-POLIS only)
 - [`remove_forward_fill_polis_pop()`](https://cdcgov.github.io/survpopdata/reference/remove_forward_fill_polis_pop.md)

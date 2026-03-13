@@ -1,8 +1,8 @@
-# Build district population (Admin2) in wide format
+# Build district population
 
-Combines POLIS + patches + Jamal; joins to district-year shapes;
-deduplicates; fills datasource across gaps within GUID; fills missing
-values using growth rates.
+Cleans the district level population data from the POLIS API and fill in
+gaps in population counts using several patch files and application of
+growth rates.
 
 ## Usage
 
@@ -94,6 +94,7 @@ process_dist_pop_data(
 
 ``` r
 if (FALSE) { # \dontrun{
-dist_pop_data(pop_data, output_file = "Data/pop/dist_pop_admin2.rds")
+pop_data <- load_polis_pop("dist")
+dist_pop <- process_dist_pop_data(pop_data)
 } # }
 ```

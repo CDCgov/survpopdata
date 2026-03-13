@@ -1,9 +1,7 @@
-# Build country population (Admin0) in wide format
+# Build country population
 
-Combines POLIS + patches + Jamal; joins to country-year shapes;
-deduplicates; fills datasource across gaps within GUID; fills missing
-values using growth rates. Aggregates remaining country-level gaps by
-summing all province totals per country.
+Cleans the country level population data from the POLIS API and fill in
+gaps in population counts using the application of growth rates.
 
 ## Usage
 
@@ -50,3 +48,12 @@ process_ctry_pop_data(
 ## Value
 
 `tibble` Cleaned country population.
+
+## Examples
+
+``` r
+if (FALSE) { # \dontrun{
+pop_data <- load_polis_pop("ctry")
+ctry_pop <- process_ctry_pop_data(pop_data)
+} # }
+```
