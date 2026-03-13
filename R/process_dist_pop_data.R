@@ -318,7 +318,7 @@ load_all_patches <- function(pakistan_file_path = "GID/PEB/SIR/Data/pop/pop raw/
 #' Loads and formats the population growth rate file for use in R.
 #'
 #'
-#' @param file_loc `str` Path to WPP Excel file.
+#' @param .file_loc `str` Path to WPP Excel file.
 #' @details
 #' The Excel file uses the "Estimates" tab. The first few rows (16 rows or so) are deleted for ease of loading into
 #' R. The source of this dataset is in the [World Population Prospects](https://population.un.org/wpp/downloads?folder=Standard%20Projections&group=Most%20used)
@@ -327,11 +327,10 @@ load_all_patches <- function(pakistan_file_path = "GID/PEB/SIR/Data/pop/pop raw/
 #' @return `tibble` Growth rates for each country by year.
 #' @export
 load_growth_rates <- function(
-    file_loc = "GID/PEB/SIR/Data/pop/pop raw/WPP2024_GEN_F01_DEMOGRAPHIC_INDICATORS_COMPACT.xlsx",
+    .file_loc = "GID/PEB/SIR/Data/pop/pop raw/WPP2024_GEN_F01_DEMOGRAPHIC_INDICATORS_COMPACT.xlsx",
     edav = TRUE
 ) {
-  wpp_raw <- sirfunctions::sirfunctions_io("read", NULL, file_loc, edav = edav, sheet = 1)
-  wpp_raw <- wpp_raw$Estimates
+  wpp_raw <- sirfunctions::sirfunctions_io("read", NULL, file_loc = .file_loc, edav = edav, sheet = 1)
 
   # Select and standardize output
   growth_rates <- wpp_raw |>
@@ -611,7 +610,7 @@ process_dist_pop_data <- function(pop_data,
     dplyr::tibble() |>
     dplyr::select(#WHO_REGION, apparently missing in the new SF
                   dplyr::ends_with("_NAME"), dplyr::ends_with("_GUID"),
-                  yr.st, yr.end, active.year.01, GUID) |>
+                  yr.st, yr.end, active.year.01, GUID, ADM2_SHAPE_ID) |>
     dplyr::select(-dplyr::ends_with("VIZ_NAME"))
 
   rm(district_long)
@@ -620,7 +619,8 @@ process_dist_pop_data <- function(pop_data,
   # Transform POLIS wide and 0-5Y/U0-15Y/UALL to Under5Pop/Under15Pop/Total
   polis_pop <- pop_data |>
     dplyr::arrange(year) |>
-    dplyr::select(-CREATEDDATE, -UPDATEDDATE, -STARTDATE, -ENDDATE, -is_forward_fill) |>
+    dplyr::select(-CREATEDDATE, -UPDATEDDATE, -STARTDATE, -ENDDATE, -is_forward_fill,
+                  -FK_DataSetId) |>
     tidyr::pivot_wider(names_from = AgeGroupCode, values_from = Value) |>
     dplyr::rename(
       ADM0_GUID = adm0guid,
@@ -646,6 +646,19 @@ process_dist_pop_data <- function(pop_data,
                   ADM0_GUID = dplyr::coalesce(sf_adm0guid, ADM0_GUID),
                   ADM1_GUID = dplyr::coalesce(sf_adm1guid, ADM1_GUID)) |>
     dplyr::select(-dplyr::starts_with("sf_"))
+
+  non_stable_adm2_shape_ids <- polis_pop |>
+    dplyr::group_by(GUID) |>
+    dplyr::summarize(multiple_shape_ids = length(unique(ADM2_SHAPE_ID))) |>
+    dplyr::filter(multiple_shape_ids > 1)
+
+  if (nrow(non_stable_adm2_shape_ids) > 0) {
+    cli::cli_alert_warning("An adm2guid has multiple shape IDs! Please refer to the error folder.")
+    sirfunctions::sirfunctions_io("read", NULL, file.path(pop_dir, "errors",
+                                                          paste0(Sys.time(), "_adm2guids_multiple_shape_ids.csv")))
+  } else {
+    cli::cli_alert_success("adm2guids all have unique shape IDs.")
+  }
 
   # Input Non-POLIS data and removal of forward-filled repeats Values
   non_polis_pop <- load_all_patches(pakistan_file_path,
