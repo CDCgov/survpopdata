@@ -6,6 +6,8 @@
 \alias{survpopdata-package}
 \title{survpopdata: Create Cleaned Population Datasets Used In GPEI Analyses}
 \description{
+\if{html}{\figure{logo.png}{options: style='float: right' alt='logo' width='120'}}
+
 The package aims to clean the population datasets used in multiple GPEI analyses, from the ADM0 through the ADM2 levels.
 }
 \seealso{

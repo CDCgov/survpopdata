@@ -5,13 +5,13 @@
 \title{Load population growth rates}
 \usage{
 load_growth_rates(
-  file_loc =
+  .file_loc =
     "GID/PEB/SIR/Data/pop/pop raw/WPP2024_GEN_F01_DEMOGRAPHIC_INDICATORS_COMPACT.xlsx",
   edav = TRUE
 )
 }
 \arguments{
-\item{file_loc}{\code{str} Path to WPP Excel file.}
+\item{.file_loc}{\code{str} Path to WPP Excel file.}
 }
 \value{
 \code{tibble} Growth rates for each country by year.
