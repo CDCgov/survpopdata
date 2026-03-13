@@ -53,11 +53,12 @@ load_indonesia_patch <- function(indonesia_file_path = "GID/PEB/SIR/Data/pop/pop
 
 # Public function ----
 
-#' Build province population (Admin1) in wide format
+#' Build province population
 #'
-#' Combines POLIS + patches + Jamal; joins to province-year shapes; deduplicates;
-#' fills datasource across gaps within GUID; fills missing values using growth rates.
-#' Aggregates remaining province-level gaps by summing all district totals per province.
+#' @description
+#' Cleans the province level population data from the POLIS API and fill in
+#' gaps in population counts using district roll-ups where applicable and
+#' application of growth rates.
 #'
 #' @param pop_data `tibble` Province population dataset pulled from the POLIS API.
 #' @param pop_dir `str` Default directory to the population folder.
@@ -72,7 +73,8 @@ load_indonesia_patch <- function(indonesia_file_path = "GID/PEB/SIR/Data/pop/pop
 #' @export
 #' @examples
 #' \dontrun{
-#' prov_pop_data(pop_data, output_file = "Data/pop/prov_pop_admin1.rds")
+#' pop_data <- load_polis_pop("prov")
+#' prov_pop <- process_prov_pop_data(pop_data)
 #' }
 process_prov_pop_data <- function(pop_data,
                                   pop_dir = "GID/PEB/SIR/Data/pop",
@@ -129,8 +131,6 @@ process_prov_pop_data <- function(pop_data,
       active.year.01 = year
     )
 
-  # Only patch for province is the NPAFP rate indicator and potentially indonesia patch
-  # will check if we can get data from POLIS only first
 
   # Prefer adm0 guid and names from the shapefile
   polis_pop <- dplyr::left_join(province_long_subset |>
@@ -138,10 +138,55 @@ process_prov_pop_data <- function(pop_data,
                                                 sf_adm1_name = ADM1_NAME,
                                                 sf_adm0guid = ADM0_GUID),
                                 polis_pop) |>
-    dplyr::distinct() |>
-    dplyr::mutate(ADM0_NAME = dplyr::coalesce(sf_adm0_name, ADM0_NAME),
-                  ADM1_NAME = dplyr::coalesce(sf_adm1_name, ADM1_NAME),
-                  ADM0_GUID = dplyr::coalesce(sf_adm0guid, ADM0_GUID)) |>
+    dplyr::distinct()
+
+  # Check when the pop names are not matching with the shapefile
+  ctry_name_mismatch <- polis_pop |>
+    dplyr::filter(sf_adm0_name != ADM0_NAME)
+  prov_name_mismatch <- polis_pop |>
+    dplyr::filter(sf_adm1_name != ADM1_NAME)
+
+  # Check when adm0guid are not matching the shapefile
+  adm0guid_mismatch <- polis_pop |>
+    dplyr::filter(sf_adm0guid != ADM0_GUID)
+
+  if (nrow(ctry_name_mismatch) > 0) {
+    cli::cli_alert_warning("Country name mismatches between pop and shapefile. See 'errors' folder.")
+    sirfunctions::sirfunctions_io("write", NULL, file.path(pop_dir, "errors",
+                                                           paste0(Sys.Date(),
+                                                                  "_ctry_name_mismatches_in_prov_pop.csv")),
+                                  obj = ctry_name_mismatch,
+                                  edav = edav)
+  } else {
+    cli::cli_alert_success("No mismatches in country names between pop and shapefile.")
+  }
+
+  if (nrow(prov_name_mismatch) > 0) {
+    cli::cli_alert_warning("Province name mismatches between pop and shapefile. See 'errors' folder.")
+    sirfunctions::sirfunctions_io("write", NULL, file.path(pop_dir, "errors",
+                                                           paste0(Sys.Date(),
+                                                                  "_prov_name_mismatches_in_prov_pop.csv")),
+                                  obj = prov_name_mismatch,
+                                  edav = edav)
+  } else {
+    cli::cli_alert_success("No mismatches in province names between pop and shapefile.")
+  }
+
+  if (nrow(adm0guid_mismatch) > 0) {
+    cli::cli_alert_warning("adm0guid mismatches between pop and shapefile. See 'errors' folder.")
+    sirfunctions::sirfunctions_io("write", NULL, file.path(pop_dir, "errors",
+                                                           paste0(Sys.Date(),
+                                                                  "_adm0guid_mismatches_in_prov_pop.csv")),
+                                  obj = adm0guid_mismatch,
+                                  edav = edav)
+  } else {
+    cli::cli_alert_success("No mismatches in adm0guid between pop and shapefile.")
+  }
+
+  polis_pop <- polis_pop |>
+    dplyr::mutate(ADM0_NAME = sf_adm0_name,
+                  ADM1_NAME = sf_adm1_name,
+                  ADM0_GUID = sf_adm0guid) |>
     dplyr::select(-dplyr::starts_with("sf_"), -FK_DataSetId)
 
   base_data <- polis_pop |>
@@ -249,6 +294,9 @@ process_prov_pop_data <- function(pop_data,
       u15pop = "0-15Y",
       u5pop = "0-5Y",
       totpop = "ALL",
+      u15.anchor.year = "0-15Y_anchor_year",
+      u5.anchor.year = "0-5Y_anchor_year",
+      tot.anchor.year = "ALL_anchor_year",
       used_growth_rate_tot = "used_growth_ALL",
       used_growth_rate_u5 = "used_growth_0-5Y",
       used_growth_rate_u15 = "used_growth_0-15Y"
@@ -276,6 +324,8 @@ process_prov_pop_data <- function(pop_data,
         dplyr::between(u15pop, 500000, 999999) ~ "500,000-999,999",
         u15pop >= 1000000 ~ ">=1,000,000")
     ) |>
+    dplyr::relocate(u15pop, u5pop, totpop, .after = datasource) |>
+    dplyr::relocate(growth.rate, .before = used.growth.rate) |>
     dplyr::mutate(pop.cat = factor(pop.cat,
                                    levels = c("Missing",
                                               "<100,000",

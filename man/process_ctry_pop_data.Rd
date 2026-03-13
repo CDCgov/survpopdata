@@ -2,7 +2,7 @@
 % Please edit documentation in R/process_ctry_pop_data.R
 \name{process_ctry_pop_data}
 \alias{process_ctry_pop_data}
-\title{Build country population (Admin0) in wide format}
+\title{Build country population}
 \usage{
 process_ctry_pop_data(
   pop_data,
@@ -33,7 +33,13 @@ is \code{rds}.}
 \code{tibble} Cleaned country population.
 }
 \description{
-Combines POLIS + patches + Jamal; joins to country-year shapes; deduplicates;
-fills datasource across gaps within GUID; fills missing values using growth rates.
-Aggregates remaining country-level gaps by summing all province totals per country.
+Cleans the country level population data from the POLIS API and fill in
+gaps in population counts using the application of growth rates.
+}
+\examples{
+\dontrun{
+pop_data <- load_polis_pop("ctry")
+ctry_pop <- process_ctry_pop_data(pop_data)
+}
+
 }

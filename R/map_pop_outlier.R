@@ -56,11 +56,13 @@ map_pop_outlier <- function(pop_w_outlier_cat,
     dplyr::filter(dplyr::between(year, year_start, year_end))
 
   if (!is.null(ctry_name)) {
+    ctry_name <- stringr::str_trim(stringr::str_to_upper(ctry_name))
     sf_w_pop <- sf_w_pop |>
       dplyr::filter(ctry == ctry_name)
   }
 
   if (!is.null(who_region)) {
+    who_region <- stringr::str_trim(stringr::str_to_upper(who_region))
     sf_w_pop <- sf_w_pop |>
       dplyr::filter(who.region == who_region)
   }

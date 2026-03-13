@@ -2,7 +2,7 @@
 % Please edit documentation in R/process_prov_pop_data.R
 \name{process_prov_pop_data}
 \alias{process_prov_pop_data}
-\title{Build province population (Admin1) in wide format}
+\title{Build province population}
 \usage{
 process_prov_pop_data(
   pop_data,
@@ -37,12 +37,13 @@ process_prov_pop_data(
 \code{tibble} Tibble with GUID + province-year rows and final output naming.
 }
 \description{
-Combines POLIS + patches + Jamal; joins to province-year shapes; deduplicates;
-fills datasource across gaps within GUID; fills missing values using growth rates.
-Aggregates remaining province-level gaps by summing all district totals per province.
+Cleans the province level population data from the POLIS API and fill in
+gaps in population counts using district roll-ups where applicable and
+application of growth rates.
 }
 \examples{
 \dontrun{
-prov_pop_data(pop_data, output_file = "Data/pop/prov_pop_admin1.rds")
+pop_data <- load_polis_pop("prov")
+prov_pop <- process_prov_pop_data(pop_data)
 }
 }
