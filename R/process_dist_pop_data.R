@@ -549,10 +549,11 @@ patch_polis_with_non_polis_pop <- function(polis_pop, non_polis_pop, patch_file)
 
 # Public function ----
 
-#' Build district population (Admin2) in wide format
+#' Build district population
 #'
-#' Combines POLIS + patches + Jamal; joins to district-year shapes; deduplicates;
-#' fills datasource across gaps within GUID; fills missing values using growth rates.
+#' @description
+#' Cleans the district level population data from the POLIS API and fill in
+#' gaps in population counts using several patch files and application of growth rates.
 #'
 #' @param pop_data `tibble` District population dataset pulled from the POLIS API.
 #' @param pop_dir `str` Default directory to the population folder.
@@ -568,7 +569,8 @@ patch_polis_with_non_polis_pop <- function(polis_pop, non_polis_pop, patch_file)
 #'
 #' @examples
 #' \dontrun{
-#' dist_pop_data(pop_data, output_file = "Data/pop/dist_pop_admin2.rds")
+#' pop_data <- load_polis_pop("dist")
+#' dist_pop <- process_dist_pop_data(pop_data)
 #' }
 process_dist_pop_data <- function(pop_data,
                                   pop_dir = "GID/PEB/SIR/Data/pop",

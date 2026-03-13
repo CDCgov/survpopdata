@@ -1,16 +1,21 @@
 # Public function ----
 
-#' Build country population (Admin0) in wide format
+#' Build country population
 #'
-#' Combines POLIS + patches + Jamal; joins to country-year shapes; deduplicates;
-#' fills datasource across gaps within GUID; fills missing values using growth rates.
-#' Aggregates remaining country-level gaps by summing all province totals per country.
+#' Cleans the country level population data from the POLIS API and fill in
+#' gaps in population counts using the application of growth rates.
 #'
 #' @param pop_data `tibble` Country population dataset pulled from the POLIS API.
 #' @inheritParams process_dist_pop_data
 #' @returns `tibble` Cleaned country population.
 #'
 #' @export
+#' @examples
+#' \dontrun{
+#' pop_data <- load_polis_pop("ctry")
+#' ctry_pop <- process_ctry_pop_data(pop_data)
+#' }
+#'
 process_ctry_pop_data <- function(pop_data,
                                   pop_dir = "GID/PEB/SIR/Data/pop",
                                   ctry_file_path = "GID/PEB/SIR/Data/spatial/global.ctry.rds",
