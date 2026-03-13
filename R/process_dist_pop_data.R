@@ -659,7 +659,7 @@ process_dist_pop_data <- function(pop_data,
     cli::cli_alert_warning("Country name mismatches between pop and shapefile. See 'errors' folder.")
     sirfunctions::sirfunctions_io("write", NULL, file.path(pop_dir, "errors",
                                                           paste0(Sys.Date(),
-                                                                 "_ctry_name_mismatches.csv")),
+                                                                 "_ctry_name_mismatches_in_dist_pop.csv")),
                                   obj = ctry_name_mismatch,
                                   edav = edav)
   } else {
@@ -670,7 +670,7 @@ process_dist_pop_data <- function(pop_data,
     cli::cli_alert_warning("Province name mismatches between pop and shapefile. See 'errors' folder.")
     sirfunctions::sirfunctions_io("write", NULL, file.path(pop_dir, "errors",
                                                           paste0(Sys.Date(),
-                                                                 "_prov_name_mismatches.csv")),
+                                                                 "_prov_name_mismatches_in_dist_pop.csv")),
                                   obj = prov_name_mismatch,
                                   edav = edav)
   } else {
@@ -681,7 +681,7 @@ process_dist_pop_data <- function(pop_data,
     cli::cli_alert_warning("District name mismatches between pop and shapefile. See 'errors' folder.")
     sirfunctions::sirfunctions_io("write", NULL, file.path(pop_dir, "errors",
                                                           paste0(Sys.Date(),
-                                                                 "_dist_name_mismatches.csv")),
+                                                                 "_dist_name_mismatches_in_dist_pop.csv")),
                                   obj = dist_name_mismatch,
                                   edav = edav)
   } else {
@@ -692,7 +692,7 @@ process_dist_pop_data <- function(pop_data,
     cli::cli_alert_warning("adm0guid mismatches between pop and shapefile. See 'errors' folder.")
     sirfunctions::sirfunctions_io("write", NULL, file.path(pop_dir, "errors",
                                                           paste0(Sys.Date(),
-                                                                 "_adm0guid_mismatches.csv")),
+                                                                 "_adm0guid_mismatches_in_dist_pop.csv")),
                                   obj = adm0guid_mismatch,
                                   edav = edav)
   } else {
@@ -703,7 +703,7 @@ process_dist_pop_data <- function(pop_data,
     cli::cli_alert_warning("adm1guid mismatches between pop and shapefile. See 'errors' folder.")
     sirfunctions::sirfunctions_io("write", NULL, file.path(pop_dir, "errors",
                                                           paste0(Sys.Date(),
-                                                                 "_adm1guid_mismatches.csv")),
+                                                                 "_adm1guid_mismatches_in_dist_pop.csv")),
                                   obj = adm1guid_mismatch,
                                   edav = edav)
   } else {
