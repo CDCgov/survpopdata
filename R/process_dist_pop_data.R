@@ -318,7 +318,7 @@ load_all_patches <- function(pakistan_file_path = "GID/PEB/SIR/Data/pop/pop raw/
 #' Loads and formats the population growth rate file for use in R.
 #'
 #'
-#' @param file_loc `str` Path to WPP Excel file.
+#' @param .file_loc `str` Path to WPP Excel file.
 #' @details
 #' The Excel file uses the "Estimates" tab. The first few rows (16 rows or so) are deleted for ease of loading into
 #' R. The source of this dataset is in the [World Population Prospects](https://population.un.org/wpp/downloads?folder=Standard%20Projections&group=Most%20used)
@@ -327,11 +327,10 @@ load_all_patches <- function(pakistan_file_path = "GID/PEB/SIR/Data/pop/pop raw/
 #' @return `tibble` Growth rates for each country by year.
 #' @export
 load_growth_rates <- function(
-    file_loc = "GID/PEB/SIR/Data/pop/pop raw/WPP2024_GEN_F01_DEMOGRAPHIC_INDICATORS_COMPACT.xlsx",
+    .file_loc = "GID/PEB/SIR/Data/pop/pop raw/WPP2024_GEN_F01_DEMOGRAPHIC_INDICATORS_COMPACT.xlsx",
     edav = TRUE
 ) {
-  wpp_raw <- sirfunctions::sirfunctions_io("read", NULL, file_loc, edav = edav, sheet = 1)
-  wpp_raw <- wpp_raw$Estimates
+  wpp_raw <- sirfunctions::sirfunctions_io("read", NULL, file_loc = .file_loc, edav = edav, sheet = 1)
 
   # Select and standardize output
   growth_rates <- wpp_raw |>
@@ -449,7 +448,7 @@ remove_forward_fill_non_polis <- function(non_polis_pop) {
 #' @returns `tibble` Population data with population filled based on growth rates
 #' @keywords internal
 #'
-apply_growth_rate <- function(base_data, pop_column, grouping_col = "ADM2_GUID") {
+apply_growth_rate <- function(base_data, pop_column, grouping_col = "ADM2_SHAPE_ID") {
 
   # Create anchor year vars
   base_data_formatted <- base_data |>
@@ -550,10 +549,11 @@ patch_polis_with_non_polis_pop <- function(polis_pop, non_polis_pop, patch_file)
 
 # Public function ----
 
-#' Build district population (Admin2) in wide format
+#' Build district population
 #'
-#' Combines POLIS + patches + Jamal; joins to district-year shapes; deduplicates;
-#' fills datasource across gaps within GUID; fills missing values using growth rates.
+#' @description
+#' Cleans the district level population data from the POLIS API and fill in
+#' gaps in population counts using several patch files and application of growth rates.
 #'
 #' @param pop_data `tibble` District population dataset pulled from the POLIS API.
 #' @param pop_dir `str` Default directory to the population folder.
@@ -569,7 +569,8 @@ patch_polis_with_non_polis_pop <- function(polis_pop, non_polis_pop, patch_file)
 #'
 #' @examples
 #' \dontrun{
-#' dist_pop_data(pop_data, output_file = "Data/pop/dist_pop_admin2.rds")
+#' pop_data <- load_polis_pop("dist")
+#' dist_pop <- process_dist_pop_data(pop_data)
 #' }
 process_dist_pop_data <- function(pop_data,
                                   pop_dir = "GID/PEB/SIR/Data/pop",
@@ -611,7 +612,7 @@ process_dist_pop_data <- function(pop_data,
     dplyr::tibble() |>
     dplyr::select(#WHO_REGION, apparently missing in the new SF
                   dplyr::ends_with("_NAME"), dplyr::ends_with("_GUID"),
-                  yr.st, yr.end, active.year.01, GUID) |>
+                  yr.st, yr.end, active.year.01, GUID, ADM2_SHAPE_ID) |>
     dplyr::select(-dplyr::ends_with("VIZ_NAME"))
 
   rm(district_long)
@@ -620,7 +621,8 @@ process_dist_pop_data <- function(pop_data,
   # Transform POLIS wide and 0-5Y/U0-15Y/UALL to Under5Pop/Under15Pop/Total
   polis_pop <- pop_data |>
     dplyr::arrange(year) |>
-    dplyr::select(-CREATEDDATE, -UPDATEDDATE, -STARTDATE, -ENDDATE, -is_forward_fill) |>
+    dplyr::select(-CREATEDDATE, -UPDATEDDATE, -STARTDATE, -ENDDATE, -is_forward_fill,
+                  -FK_DataSetId) |>
     tidyr::pivot_wider(names_from = AgeGroupCode, values_from = Value) |>
     dplyr::rename(
       ADM0_GUID = adm0guid,
@@ -639,15 +641,105 @@ process_dist_pop_data <- function(pop_data,
                                                 sf_adm0guid = ADM0_GUID,
                                                 sf_adm1guid = ADM1_GUID),
                                 polis_pop) |>
-    dplyr::distinct() |>
-    dplyr::mutate(ADM0_NAME = dplyr::coalesce(sf_adm0_name, ADM0_NAME),
-                  ADM1_NAME = dplyr::coalesce(sf_adm1_name, ADM1_NAME),
-                  ADM2_NAME = dplyr::coalesce(sf_adm2_name, ADM2_NAME),
-                  ADM0_GUID = dplyr::coalesce(sf_adm0guid, ADM0_GUID),
-                  ADM1_GUID = dplyr::coalesce(sf_adm1guid, ADM1_GUID)) |>
+    dplyr::distinct()
+
+  # Check when the pop names are not matching with the shapefile
+  ctry_name_mismatch <- polis_pop |>
+    dplyr::filter(sf_adm0_name != ADM0_NAME)
+  prov_name_mismatch <- polis_pop |>
+    dplyr::filter(sf_adm1_name != ADM1_NAME)
+  dist_name_mismatch <- polis_pop |>
+    dplyr::filter(sf_adm2_name != ADM2_NAME)
+
+  # Check when adm0guid are not matching the shapefile
+  adm0guid_mismatch <- polis_pop |>
+    dplyr::filter(sf_adm0guid != ADM0_GUID)
+  adm1guid_mismatch <- polis_pop |>
+    dplyr::filter(sf_adm1guid != ADM1_GUID)
+
+  if (nrow(ctry_name_mismatch) > 0) {
+    cli::cli_alert_warning("Country name mismatches between pop and shapefile. See 'errors' folder.")
+    sirfunctions::sirfunctions_io("write", NULL, file.path(pop_dir, "errors",
+                                                          paste0(Sys.Date(),
+                                                                 "_ctry_name_mismatches_in_dist_pop.csv")),
+                                  obj = ctry_name_mismatch,
+                                  edav = edav)
+  } else {
+    cli::cli_alert_success("No mismatches in country names between pop and shapefile.")
+  }
+
+  if (nrow(prov_name_mismatch) > 0) {
+    cli::cli_alert_warning("Province name mismatches between pop and shapefile. See 'errors' folder.")
+    sirfunctions::sirfunctions_io("write", NULL, file.path(pop_dir, "errors",
+                                                          paste0(Sys.Date(),
+                                                                 "_prov_name_mismatches_in_dist_pop.csv")),
+                                  obj = prov_name_mismatch,
+                                  edav = edav)
+  } else {
+    cli::cli_alert_success("No mismatches in province names between pop and shapefile.")
+  }
+
+  if (nrow(dist_name_mismatch) > 0) {
+    cli::cli_alert_warning("District name mismatches between pop and shapefile. See 'errors' folder.")
+    sirfunctions::sirfunctions_io("write", NULL, file.path(pop_dir, "errors",
+                                                          paste0(Sys.Date(),
+                                                                 "_dist_name_mismatches_in_dist_pop.csv")),
+                                  obj = dist_name_mismatch,
+                                  edav = edav)
+  } else {
+    cli::cli_alert_success("No mismatches in district names between pop and shapefile.")
+  }
+
+  if (nrow(adm0guid_mismatch) > 0) {
+    cli::cli_alert_warning("adm0guid mismatches between pop and shapefile. See 'errors' folder.")
+    sirfunctions::sirfunctions_io("write", NULL, file.path(pop_dir, "errors",
+                                                          paste0(Sys.Date(),
+                                                                 "_adm0guid_mismatches_in_dist_pop.csv")),
+                                  obj = adm0guid_mismatch,
+                                  edav = edav)
+  } else {
+    cli::cli_alert_success("No mismatches in adm0guid between pop and shapefile.")
+  }
+
+  if (nrow(adm1guid_mismatch) > 0) {
+    cli::cli_alert_warning("adm1guid mismatches between pop and shapefile. See 'errors' folder.")
+    sirfunctions::sirfunctions_io("write", NULL, file.path(pop_dir, "errors",
+                                                          paste0(Sys.Date(),
+                                                                 "_adm1guid_mismatches_in_dist_pop.csv")),
+                                  obj = adm1guid_mismatch,
+                                  edav = edav)
+  } else {
+    cli::cli_alert_success("No mismatches in adm1guid between pop and shapefile.")
+  }
+
+  polis_pop <- polis_pop |>
+    dplyr::mutate(ADM0_NAME = sf_adm0_name,
+                  ADM1_NAME = sf_adm1_name,
+                  ADM2_NAME = sf_adm2_name,
+                  ADM0_GUID = sf_adm0guid,
+                  ADM1_GUID = sf_adm1guid) |>
     dplyr::select(-dplyr::starts_with("sf_"))
 
+  # Each adm2 shape ID can have multiple GUIDs, typically when a province
+  # changes shape. However, an adm2guid should not have multiple Shape IDs. What
+  # that would mean is that a district changed shape without redistricting, which
+  # is atypical.
+
+  non_stable_adm2_shape_ids <- polis_pop |>
+    dplyr::group_by(GUID) |>
+    dplyr::summarize(multiple_shape_ids = length(unique(ADM2_SHAPE_ID))) |>
+    dplyr::filter(multiple_shape_ids > 1)
+
+  if (nrow(non_stable_adm2_shape_ids) > 0) {
+    cli::cli_alert_warning("An adm2guid has multiple shape IDs! Please refer to the error folder.")
+    sirfunctions::sirfunctions_io("read", NULL, file.path(pop_dir, "errors",
+                                                          paste0(Sys.time(), "_adm2guids_multiple_shape_ids.csv")))
+  } else {
+    cli::cli_alert_success("adm2guids all have unique shape IDs.")
+  }
+
   # Input Non-POLIS data and removal of forward-filled repeats Values
+  # All these data came from WHO
   non_polis_pop <- load_all_patches(pakistan_file_path,
                                     somalia_2022_file_path,
                                     somalia_2023_file_path,
@@ -810,7 +902,7 @@ process_dist_pop_data <- function(pop_data,
                                dplyr::ungroup())
 
   formatted_result <- result |>
-    dplyr::select(-FK_DataSetId, -ISO_3_CODE) |>
+    dplyr::select(-ISO_3_CODE) |>
     tidyr::replace_na(list(used_growth_ALL = FALSE,
                            `used_growth_0-15Y` = FALSE,
                            `used_growth_0-5Y` = FALSE,
@@ -821,12 +913,16 @@ process_dist_pop_data <- function(pop_data,
       adm0guid = "ADM0_GUID",
       adm1guid = "ADM1_GUID",
       adm2guid = "ADM2_GUID",
+      adm2.shape.id = "ADM2_SHAPE_ID",
       ctry = "ADM0_NAME",
       prov = "ADM1_NAME",
       dist = "ADM2_NAME",
       u15pop = "0-15Y",
       u5pop = "0-5Y",
       totpop = "ALL",
+      u15.anchor.year = "0-15Y_anchor_year",
+      u5.anchor.year = "0-5Y_anchor_year",
+      tot.anchor.year = "ALL_anchor_year",
       used_growth_rate_tot = "used_growth_ALL",
       used_growth_rate_u5 = "used_growth_0-5Y",
       used_growth_rate_u15 = "used_growth_0-15Y"
@@ -854,6 +950,8 @@ process_dist_pop_data <- function(pop_data,
         dplyr::between(u15pop, 100000, 499999) ~ "100,000-499,999",
         u15pop >= 500000 ~ ">=500,000")
     ) |>
+    dplyr::relocate(u15pop, u5pop, totpop, .after = datasource) |>
+    dplyr::relocate(growth.rate, .before = used.growth.rate) |>
     dplyr::mutate(pop.cat = factor(pop.cat,
                                    levels = c("Missing", "<25,000",
                                               "25,000-49,999", "50,000-99,999",
